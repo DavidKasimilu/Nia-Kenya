@@ -1,412 +1,117 @@
 const GATEWAY_URL = "https://nia-gateway.davidkasimilu71.workers.dev";
 const EDGE_KEY = "cf-worker-edge-managed";
+const sb = window.supabase ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const icons = () => window.__icons && window.__icons();
+const toast = (t) => { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); };
+const ST = { new: ["Submitted", ""], reviewing: ["In review", ""], shortlisted: ["Shortlisted", "good"], contacted: ["Contacted", "good"], rejected: ["Not selected", "bad"] };
+let user, profile = {};
 
-const supabaseClient = window.supabase
-  ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : null;
-
-let currentUser = null;
-let currentProfileData = null;
-
-function showMessage(text, isError = false) {
-  const msgElem = document.getElementById("statusMessage");
-  if (!msgElem) return;
-  msgElem.textContent = text;
-  msgElem.className = `message ${isError ? "error" : "success"}`;
-  msgElem.classList.remove("hidden");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+function paintAvatar() {
+  const n = (profile.full_name || user.email || "?").trim()[0].toUpperCase();
+  const html = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n);
+  $("avLg").innerHTML = html; $("avatarBtn").innerHTML = html; $("menuName").textContent = profile.full_name || "Student";
+}
+function paintCv() {
+  const has = !!profile.resume_url;
+  $("cvName").textContent = has ? "CV uploaded" : "No CV uploaded"; $("cvHint").textContent = has ? "Used for all your applications" : "Add one to start applying";
+  $("cvView").classList.toggle("hidden", !has); $("cvRemoveBtn").classList.toggle("hidden", !has); $("cvUploadBtn").textContent = has ? "Replace" : "Upload";
+  if (has) $("cvView").href = profile.resume_url;
+}
+async function saveProfileFields(patch) {
+  const { error } = await sb.from("profiles").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", user.id);
+  if (error) { toast("Could not save: " + error.message); return false; }
+  Object.assign(profile, patch); return true;
+}
+function showTab(t) {
+  document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  ["profile", "applications", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
+  if (t === "applications") loadApps();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!supabaseClient) {
-    console.error("Supabase failed to initialize.");
-    return;
-  }
+  if (!sb) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return (location.href = "index.html");
+  user = session.user;
+  const { data: p } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  if (p?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
+  profile = p || {};
+  $("pEmail").textContent = user.email; $("menuEmail").textContent = user.email;
+  if (profile.role === "admin") $("adminLink").classList.remove("hidden");
+  const map = { fFull: "full_name", fPhone: "phone", fWa: "whatsapp", fCounty: "county", fInst: "institution", fCourse: "course", fBio: "bio" };
+  Object.entries(map).forEach(([id, k]) => ($(id).value = profile[k] || ""));
+  paintAvatar(); paintCv();
 
-  // Session & Auth Check
-  const { data: { session }, error } = await supabaseClient.auth.getSession();
-  if (error || !session) {
-    window.location.href = "index.html";
-    return;
-  }
+  $("avatarBtn").onclick = (e) => { e.stopPropagation(); const m = $("menu"); m.classList.toggle("hidden"); $("avatarBtn").setAttribute("aria-expanded", !m.classList.contains("hidden")); };
+  document.addEventListener("click", (e) => { if (!$("menu").contains(e.target)) $("menu").classList.add("hidden"); });
+  const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
+  $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out;
+  $("ptabs").onclick = (e) => { const b = e.target.closest(".ptab"); if (b) { showTab(b.dataset.tab); history.replaceState(null, "", "#" + b.dataset.tab); } };
+  document.querySelectorAll("[data-go]").forEach((a) => (a.onclick = () => { showTab(a.dataset.go); $("menu").classList.add("hidden"); }));
+  const h = location.hash.slice(1); if (["applications", "settings"].includes(h)) showTab(h);
 
-  currentUser = session.user;
-
-  // Setup Top-Right Sign Out
-  const logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async () => {
-      await supabaseClient.auth.signOut();
-      window.location.href = "index.html";
-    });
-  }
-
-  // Tab Switching
-  setupTabs();
-
-  // CV Delete Modal Setup
-  setupDeleteCvModal();
-
-  // Load Data
-  await loadUserProfile();
-  await loadAppliedOpportunities();
-
-  // Form Submit Handler
-  setupProfileForm();
-});
-
-function setupTabs() {
-  const tabBasicInfo = document.getElementById("tabBasicInfo");
-  const tabApplications = document.getElementById("tabApplications");
-  const basicInfoSection = document.getElementById("basicInfoSection");
-  const applicationsSection = document.getElementById("applicationsSection");
-
-  if (tabBasicInfo && tabApplications) {
-    tabBasicInfo.addEventListener("click", () => {
-      tabBasicInfo.classList.add("active");
-      tabApplications.classList.remove("active");
-      basicInfoSection.classList.remove("hidden");
-      applicationsSection.classList.add("hidden");
-    });
-
-    tabApplications.addEventListener("click", () => {
-      tabApplications.classList.add("active");
-      tabBasicInfo.classList.remove("active");
-      applicationsSection.classList.remove("hidden");
-      basicInfoSection.classList.add("hidden");
-    });
-  }
-}
-
-// User Profile Loader
-async function loadUserProfile() {
-  const emailInput = document.getElementById("profileEmail");
-  const displayEmail = document.getElementById("displayEmail");
-  const displayFullName = document.getElementById("displayFullName");
-
-  if (emailInput) emailInput.value = currentUser.email || "";
-  if (displayEmail) displayEmail.textContent = currentUser.email || "";
-
-  try {
-    const { data: profile, error } = await supabaseClient
-      .from("profiles")
-      .select("*")
-      .eq("id", currentUser.id)
-      .maybeSingle();
-
-    if (error && error.code !== "PGRST116") {
-      console.warn("Could not fetch profile details:", error.message);
-    }
-
-    currentProfileData = profile;
-
-    const name = profile?.full_name || currentUser.user_metadata?.full_name || "Graduate";
-    if (displayFullName) displayFullName.textContent = name;
-
-    // Render resume status and toggle delete button visibility
-    renderCvStatus(profile?.resume_url);
-
-    // Populate form fields
-    document.getElementById("profileFullName").value = profile?.full_name || currentUser.user_metadata?.full_name || "";
-    document.getElementById("profilePhone").value = profile?.phone || "";
-    document.getElementById("profileInstitution").value = profile?.institution || "";
-    document.getElementById("profileCourse").value = profile?.course || "";
-    document.getElementById("profileBio").value = profile?.bio || "";
-  } catch (err) {
-    console.error("Profile load exception:", err);
-  }
-}
-
-// Render CV status text & toggle Delete button
-function renderCvStatus(resumeUrl) {
-  const resumeStatus = document.getElementById("resumeStatus");
-  const deleteCvBtn = document.getElementById("deleteCvBtn");
-
-  if (resumeUrl) {
-    if (resumeStatus) {
-      resumeStatus.innerHTML = `Current resume: <a href="${resumeUrl}" target="_blank" style="color: #0f172a; font-weight: 600; text-decoration: underline;">View Uploaded Resume</a>`;
-    }
-    if (deleteCvBtn) {
-      deleteCvBtn.classList.remove("hidden");
-    }
-  } else {
-    if (resumeStatus) {
-      resumeStatus.innerHTML = `<span style="color: #64748b;">No CV currently uploaded.</span>`;
-    }
-    if (deleteCvBtn) {
-      deleteCvBtn.classList.add("hidden");
-    }
-  }
-}
-
-// Delete CV Modal & Logic
-function setupDeleteCvModal() {
-  const deleteCvBtn = document.getElementById("deleteCvBtn");
-  const deleteCvModal = document.getElementById("deleteCvModal");
-  const cancelDeleteCvBtn = document.getElementById("cancelDeleteCvBtn");
-  const closeDeleteCvModalBtn = document.getElementById("closeDeleteCvModalBtn");
-  const confirmDeleteCvBtn = document.getElementById("confirmDeleteCvBtn");
-
-  const hideModal = () => {
-    if (deleteCvModal) deleteCvModal.classList.add("hidden");
+  $("profileForm").onsubmit = async (e) => {
+    e.preventDefault(); const patch = {}; Object.entries(map).forEach(([id, k]) => (patch[k] = $(id).value.trim() || null));
+    $("saveBtn").disabled = true; if (await saveProfileFields(patch)) { toast("Profile saved"); paintAvatar(); } $("saveBtn").disabled = false;
   };
 
-  if (deleteCvBtn) {
-    deleteCvBtn.addEventListener("click", () => {
-      if (deleteCvModal) deleteCvModal.classList.remove("hidden");
-    });
-  }
+  $("uploadAvatarBtn").onclick = () => $("avatarFile").click();
+  $("avatarFile").onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    if (!/^image\/(png|jpe?g|webp)$/.test(f.type) || f.size > 2 * 1024 * 1024) return toast("Use a PNG, JPG or WebP image under 2 MB.");
+    const path = `${user.id}/avatar_${Date.now()}.${f.name.split(".").pop().toLowerCase()}`;
+    const { error } = await sb.storage.from("avatars").upload(path, f, { upsert: true });
+    if (error) return toast("Upload failed: " + error.message);
+    if (await saveProfileFields({ avatar_url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl })) { paintAvatar(); toast("Photo updated"); }
+  };
+  $("pickAvatarBtn").onclick = async () => {
+    const box = $("defaults"); box.classList.toggle("hidden"); if (box.dataset.loaded) return;
+    const { data } = await sb.from("avatars").select("url,label").eq("active", true);
+    box.innerHTML = (data || []).map((a) => `<button type="button" data-u="${esc(a.url)}" aria-label="${esc(a.label || "Avatar")}"><img src="${esc(a.url)}" alt=""></button>`).join("") || `<p class="sub">No default avatars yet.</p>`;
+    box.dataset.loaded = 1;
+    box.onclick = async (e) => { const b = e.target.closest("button"); if (b && await saveProfileFields({ avatar_url: b.dataset.u })) { paintAvatar(); toast("Avatar updated"); } };
+  };
 
-  if (cancelDeleteCvBtn) cancelDeleteCvBtn.addEventListener("click", hideModal);
-  if (closeDeleteCvModalBtn) closeDeleteCvModalBtn.addEventListener("click", hideModal);
+  $("cvUploadBtn").onclick = () => $("cvFile").click();
+  $("cvFile").onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    if (!/\.(pdf|docx?)$/i.test(f.name) || f.size > 5 * 1024 * 1024) return toast("Use a PDF or Word file under 5 MB.");
+    const path = `${user.id}/resume_${Date.now()}.${f.name.split(".").pop().toLowerCase()}`;
+    const { error } = await sb.storage.from("resumes").upload(path, f, { upsert: true });
+    if (error) return toast("Upload failed: " + error.message);
+    await removeOldCv();
+    if (await saveProfileFields({ resume_url: sb.storage.from("resumes").getPublicUrl(path).data.publicUrl })) { paintCv(); toast("CV saved"); }
+  };
+  $("cvRemoveBtn").onclick = async () => {
+    if (!confirm("Remove your CV? You will need to upload one again to apply.")) return;
+    await removeOldCv(); if (await saveProfileFields({ resume_url: null })) { paintCv(); toast("CV removed"); }
+  };
 
-  if (deleteCvModal) {
-    deleteCvModal.addEventListener("click", (e) => {
-      if (e.target === deleteCvModal) hideModal();
-    });
-  }
+  $("pwForm").onsubmit = async (e) => {
+    e.preventDefault(); if ($("pw1").value !== $("pw2").value) return toast("Passwords do not match.");
+    $("pwBtn").disabled = true; const { error } = await sb.auth.updateUser({ password: $("pw1").value });
+    $("pwBtn").disabled = false; if (error) return toast(error.message);
+    $("pwForm").reset(); toast("Password updated");
+  };
+  icons();
+});
 
-  if (confirmDeleteCvBtn) {
-    confirmDeleteCvBtn.addEventListener("click", async () => {
-      hideModal();
-      await executeDeleteCv();
-    });
-  }
+async function removeOldCv() {
+  const m = (profile.resume_url || "").split("/storage/v1/object/public/resumes/")[1];
+  if (m) await sb.storage.from("resumes").remove([decodeURIComponent(m)]);
 }
 
-// Execute Storage & Database Deletion
-async function executeDeleteCv() {
-  try {
-    const resumeUrl = currentProfileData?.resume_url;
-
-    if (resumeUrl) {
-      // Try extracting file path from Supabase Public Storage URL
-      let filePath = null;
-      if (resumeUrl.includes("/storage/v1/object/public/resumes/")) {
-        filePath = resumeUrl.split("/storage/v1/object/public/resumes/")[1];
-      }
-
-      if (filePath) {
-        const { error: storageError } = await supabaseClient.storage
-          .from("resumes")
-          .remove([decodeURIComponent(filePath)]);
-
-        if (storageError) {
-          console.warn("Storage removal warning:", storageError.message);
-        }
-      }
-    }
-
-    // Set resume_url to NULL in profiles table
-    const { error: dbError } = await supabaseClient
-      .from("profiles")
-      .update({
-        resume_url: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", currentUser.id);
-
-    if (dbError) throw dbError;
-
-    if (currentProfileData) {
-      currentProfileData.resume_url = null;
-    }
-
-    // Update UI elements
-    renderCvStatus(null);
-    const fileInput = document.getElementById("profileResume");
-    if (fileInput) fileInput.value = "";
-    
-    const fileUploadText = document.getElementById("fileUploadName");
-    if (fileUploadText) fileUploadText.textContent = "Choose a file or drag & drop";
-
-    showMessage("Your CV has been successfully deleted.");
-  } catch (err) {
-    console.error("Delete CV Exception:", err);
-    showMessage("Failed to delete CV: " + err.message, true);
-  }
-}
-
-// Update Profile & Upload Resume
-function setupProfileForm() {
-  const form = document.getElementById("profileForm");
-  const saveBtn = document.getElementById("saveProfileBtn");
-  const fileInput = document.getElementById("profileResume");
-  const fileUploadName = document.getElementById("fileUploadName");
-
-  if (fileInput && fileUploadName) {
-    fileInput.addEventListener("change", () => {
-      if (fileInput.files.length > 0) {
-        fileUploadName.textContent = fileInput.files[0].name;
-      } else {
-        fileUploadName.textContent = "Choose a file or drag & drop";
-      }
-    });
-  }
-
-  if (!form) return;
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const fullName = document.getElementById("profileFullName").value.trim();
-    const phone = document.getElementById("profilePhone").value.trim();
-    const institution = document.getElementById("profileInstitution").value.trim();
-    const course = document.getElementById("profileCourse").value.trim();
-    const bio = document.getElementById("profileBio").value.trim();
-    const file = fileInput?.files?.[0];
-
-    let resumeUrl = currentProfileData?.resume_url || null;
-
-    saveBtn.disabled = true;
-    saveBtn.textContent = "Uploading & Saving...";
-
-    try {
-      // Upload CV to Storage if a new file was selected
-      if (file) {
-        if (file.size > 30 * 1024 * 1024) {
-          showMessage("File size exceeds 30MB limit.", true);
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save Profile";
-          return;
-        }
-
-        const fileExt = file.name.split(".").pop();
-        const filePath = `${currentUser.id}/resume_${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabaseClient.storage
-          .from("resumes")
-          .upload(filePath, file, { upsert: true });
-
-        if (uploadError) {
-          showMessage("Resume upload failed: " + uploadError.message, true);
-          saveBtn.disabled = false;
-          saveBtn.textContent = "Save Profile";
-          return;
-        }
-
-        const { data: urlData } = supabaseClient.storage
-          .from("resumes")
-          .getPublicUrl(filePath);
-
-        resumeUrl = urlData.publicUrl;
-      }
-
-      // Prepare database payload
-      const updates = {
-        id: currentUser.id,
-        email: currentUser.email,
-        full_name: fullName,
-        phone: phone,
-        institution: institution,
-        course: course,
-        bio: bio,
-        resume_url: resumeUrl,
-        updated_at: new Date().toISOString()
-      };
-
-      const { error: profileError } = await supabaseClient
-        .from("profiles")
-        .upsert(updates);
-
-      if (profileError) {
-        showMessage("Failed to update profile: " + profileError.message, true);
-        return;
-      }
-
-      if (!currentProfileData) currentProfileData = {};
-      currentProfileData.resume_url = resumeUrl;
-      currentProfileData.full_name = fullName;
-
-      document.getElementById("displayFullName").textContent = fullName || "Graduate";
-
-      renderCvStatus(resumeUrl);
-
-      showMessage("Profile and resume saved successfully!");
-    } catch (err) {
-      showMessage("An unexpected error occurred: " + err.message, true);
-    } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = "Save Profile";
-    }
-  });
-}
-
-// Fetch Applied Opportunities
-async function loadAppliedOpportunities() {
-  const container = document.getElementById("applicationsList");
-  if (!container) return;
-
-  try {
-    const { data: applications, error: appsError } = await supabaseClient
-      .from("applications")
-      .select("opportunity_id, created_at")
-      .eq("user_id", currentUser.id)
-      .order("created_at", { ascending: false });
-
-    if (appsError) {
-      container.innerHTML = `<p class="message error">Could not load applications: ${appsError.message}</p>`;
-      return;
-    }
-
-    if (!applications || applications.length === 0) {
-      container.innerHTML = `<p class="loading-text">You haven't applied to any opportunities yet.</p>`;
-      return;
-    }
-
-    const oppIds = applications.map(a => a.opportunity_id);
-    const { data: opportunities, error: oppsError } = await supabaseClient
-      .from("opportunities")
-      .select("*")
-      .in("id", oppIds);
-
-    if (oppsError) {
-      container.innerHTML = `<p class="message error">Could not load listing details: ${oppsError.message}</p>`;
-      return;
-    }
-
-    const oppMap = new Map((opportunities || []).map(o => [o.id, o]));
-
-    container.innerHTML = applications.map(app => {
-      const opp = oppMap.get(app.opportunity_id);
-      const appliedDate = app.created_at ? new Date(app.created_at).toLocaleDateString() : "Recently";
-
-      if (!opp) {
-        return `
-          <div class="app-card">
-            <div class="app-card-header">
-              <h3>Archived Opportunity</h3>
-              <span class="badge-submitted">Applied</span>
-            </div>
-            <p class="app-card-date">Submitted on: ${appliedDate}</p>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="app-card">
-          <div class="app-card-header">
-            <h3>${opp.title}</h3>
-            <span class="badge-submitted">Submitted</span>
-          </div>
-          <div class="app-card-meta">
-            <span><strong>${opp.company}</strong></span>
-            <span>•</span>
-            <span>${opp.location}</span>
-            <span>•</span>
-            <span>${opp.type}</span>
-          </div>
-          <p class="app-card-date"><i class="fa-regular fa-clock"></i> Applied on ${appliedDate}</p>
-        </div>
-      `;
-    }).join("");
-  } catch (err) {
-    container.innerHTML = `<p class="message error">Error loading records: ${err.message}</p>`;
-  }
+async function loadApps() {
+  const box = $("appsList");
+  const { data: apps, error } = await sb.from("applications").select("opportunity_id, created_at, status").eq("user_id", user.id).order("created_at", { ascending: false });
+  if (error) return (box.innerHTML = `<p class="message error">Could not load applications.</p>`);
+  if (!apps?.length) return (box.innerHTML = `<h2>No applications yet</h2><p class="sub">Browse <a href="dashboard.html" style="text-decoration:underline">opportunities</a> and apply to your first one.</p>`);
+  const { data: opps } = await sb.from("opportunities").select("id,title,company,location,type").in("id", apps.map((a) => a.opportunity_id));
+  const m = new Map((opps || []).map((o) => [o.id, o]));
+  box.innerHTML = apps.map((a) => {
+    const o = m.get(a.opportunity_id), [label, cls] = ST[a.status] || ST.new;
+    return `<div class="app"><div><h3>${esc(o?.title || "Removed opportunity")}</h3><p>${o ? esc(o.company) + " · " + esc(o.location) + " · " : ""}Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="st ${cls}">${label}</span></div>`;
+  }).join("");
 }

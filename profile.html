@@ -3,150 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nia - My Profile</title>
+  <title>My profile | Nia</title>
+  <meta name="theme-color" content="#000000" />
   <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png" />
-  <link rel="apple-touch-icon" sizes="192x192" href="assets/favicon/android-chrome-192x192.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="assets/favicon/android-chrome-512x512.png" />
-
-  <link 
-    rel="stylesheet" 
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
-    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" 
-    crossorigin="anonymous" 
-    referrerpolicy="no-referrer" 
-  />
-
-  <link rel="stylesheet" href="profile.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="dash.css" />
+  <link rel="stylesheet" href="prof.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-
-  <header class="navbar">
-    <div class="nav-brand">
-      <a href="dashboard.html" class="nav-icon-btn" title="Back to Feed" aria-label="Back">
-        <i class="fa-solid fa-arrow-left"></i>
-      </a>
-      <span class="navbar-title">Profile</span>
-    </div>
-    <div class="nav-user">
-      <button id="logoutBtn" class="nav-icon-btn" title="Sign Out" aria-label="Sign Out">
-        <img src="assets/icons/user-logout.svg" alt="Sign Out" class="nav-svg-icon" />
-      </button>
+  <header class="topbar">
+    <div class="container topbar-in">
+      <a href="dashboard.html" class="wordmark">nia<i>.</i></a>
+      <nav class="top-links"><a href="dashboard.html">Opportunities</a><a href="profile.html" class="active">My profile</a></nav>
+      <div class="me">
+        <button class="avatar" id="avatarBtn" aria-label="Account menu" aria-expanded="false"></button>
+        <div class="menu hidden" id="menu">
+          <div class="menu-head"><b id="menuName">Student</b><span id="menuEmail"></span></div>
+          <a href="dashboard.html"><i data-lucide="briefcase" class="icon"></i> Opportunities</a>
+          <a href="#settings" data-go="settings"><i data-lucide="settings" class="icon"></i> Settings</a>
+          <a href="admin.html" id="adminLink" class="hidden"><i data-lucide="layout-dashboard" class="icon"></i> Admin console</a>
+          <button id="logoutBtn" class="danger"><i data-lucide="log-out" class="icon"></i> Sign out</button>
+        </div>
+      </div>
     </div>
   </header>
 
-  <main class="container">
-    <section class="profile-header-card">
-      <div class="profile-avatar-circle">
-        <img src="assets/icons/profile.svg" alt="Avatar" class="avatar-icon" />
-      </div>
-      <div class="profile-info-summary">
-        <h2 id="displayFullName">Loading...</h2>
-        <p id="displayEmail">user@example.com</p>
-      </div>
-    </section>
-
-    <!-- Nav Tabs -->
-    <div class="tabs profile-tabs">
-      <button id="tabBasicInfo" class="tab-btn active">
-        <i class="fa-regular fa-user"></i> Basic Info
-      </button>
-      <button id="tabApplications" class="tab-btn">
-        <i class="fa-solid fa-briefcase"></i> Applied Opportunities
-      </button>
+  <main class="container page">
+    <h1>My profile</h1>
+    <p class="sub" id="pEmail"></p>
+    <div class="ptabs" id="ptabs">
+      <button class="ptab on" data-tab="profile"><i data-lucide="user" class="icon"></i> Profile</button>
+      <button class="ptab" data-tab="applications"><i data-lucide="file-text" class="icon"></i> Applications</button>
+      <button class="ptab" data-tab="settings"><i data-lucide="settings" class="icon"></i> Settings</button>
     </div>
 
-    <!-- Feedback Msg Box -->
-    <div id="statusMessage" class="message hidden"></div>
-
-    <!-- Edit Info -->
-    <section id="basicInfoSection">
-      <div class="form-box">
-        <form id="profileForm">
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="profileEmail">Email (Read Only)</label>
-              <input type="email" id="profileEmail" disabled class="input-disabled" />
-            </div>
-
-            <div class="form-group">
-              <label for="profileFullName">Full Name</label>
-              <input type="text" id="profileFullName" placeholder="e.g. Jane Doe" required />
-            </div>
-
-            <div class="form-group">
-              <label for="profilePhone">Phone Number</label>
-              <input type="tel" id="profilePhone" placeholder="e.g. +254 712 345 678" />
-            </div>
-
-            <div class="form-group">
-              <label for="profileInstitution">Institution / College</label>
-              <input type="text" id="profileInstitution" placeholder="e.g. Taita Taveta University" />
-            </div>
-
-            <div class="form-group form-span-2">
-              <label for="profileCourse">Course / Field of Study</label>
-              <input type="text" id="profileCourse" placeholder="e.g. Diploma in Information Technology" />
-            </div>
-
-            <div class="form-group form-span-2">
-              <label for="profileBio">Bio / Career Summary</label>
-              <textarea id="profileBio" rows="3" placeholder="Brief summary about your career goals and technical skills..."></textarea>
-            </div>
-
-            <!-- Styled CV Upload Area -->
-            <div class="form-group form-span-2">
-              <label for="profileResume">Resume / CV (PDF or DOCX, max 30MB)</label>
-              <div class="file-upload-wrapper">
-                <input type="file" id="profileResume" accept=".pdf,.doc,.docx" class="file-input-hidden" />
-                <label for="profileResume" class="file-upload-box">
-                  <i class="fa-solid fa-cloud-arrow-up file-upload-icon"></i>
-                  <span id="fileUploadName" class="file-upload-text">Choose a file or drag & drop</span>
-                  <span class="file-upload-subtext">PDF, DOC, DOCX up to 30MB</span>
-                </label>
-              </div>
-              
-              <!-- Resume Status & Delete Action Bar -->
-              <div class="resume-actions-bar" style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
-                <div id="resumeStatus" class="resume-status-text"></div>
-                <button type="button" id="deleteCvBtn" class="btn btn-danger hidden" style="background-color: #dc3545; color: #fff; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 6px; border: none; cursor: pointer;">
-                  <i class="fa-solid fa-trash-can"></i> Delete CV
-                </button>
-              </div>
-            </div>
+    <section class="panel" id="tab-profile">
+      <div class="pcard">
+        <h2>Photo</h2><p class="sub">Upload your own or pick a default avatar.</p>
+        <div class="av-row">
+          <div class="av-lg" id="avLg"></div>
+          <div class="av-actions">
+            <button class="btn btn-primary btn-sm" id="uploadAvatarBtn" type="button"><i data-lucide="upload" class="icon"></i> Upload photo</button>
+            <button class="btn btn-ghost btn-sm" id="pickAvatarBtn" type="button"><i data-lucide="shuffle" class="icon"></i> Choose default</button>
           </div>
+          <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp" hidden />
+        </div>
+        <div class="defaults hidden" id="defaults"></div>
+      </div>
 
-          <button type="submit" id="saveProfileBtn" class="btn btn-primary btn-full" style="margin-top: 1.5rem;">
-            Save Profile
-          </button>
-        </form>
+      <form class="pcard" id="profileForm">
+        <h2>Details</h2><p class="sub">Used to pre-fill your applications.</p>
+        <div class="form-group"><label for="fFull">Full name</label><input id="fFull" type="text" autocomplete="name" /></div>
+        <div class="two">
+          <div class="form-group"><label for="fPhone">Phone</label><input id="fPhone" type="tel" autocomplete="tel" placeholder="07XX XXX XXX" /></div>
+          <div class="form-group"><label for="fWa">WhatsApp</label><input id="fWa" type="tel" placeholder="07XX XXX XXX" /></div>
+        </div>
+        <div class="form-group"><label for="fCounty">County of residence</label><input id="fCounty" type="text" /></div>
+        <div class="two">
+          <div class="form-group"><label for="fInst">Institution</label><input id="fInst" type="text" /></div>
+          <div class="form-group"><label for="fCourse">Course</label><input id="fCourse" type="text" /></div>
+        </div>
+        <div class="form-group"><label for="fBio">Short bio</label><textarea id="fBio" rows="4" maxlength="500"></textarea></div>
+        <button class="btn btn-primary" id="saveBtn" type="submit">Save changes</button>
+      </form>
+
+      <div class="pcard">
+        <h2>CV / Resume</h2><p class="sub">Required to apply. PDF or Word, up to 5 MB.</p>
+        <div class="cv"><i data-lucide="file-text" class="icon"></i>
+          <div class="grow"><b id="cvName">No CV uploaded</b><small id="cvHint">Add one to start applying</small></div>
+          <a class="btn btn-ghost btn-sm hidden" id="cvView" target="_blank" rel="noopener">View</a>
+          <button class="btn btn-ghost btn-sm" id="cvUploadBtn" type="button">Upload</button>
+          <button class="btn btn-ghost btn-sm hidden" id="cvRemoveBtn" type="button" style="color:var(--red)">Remove</button>
+        </div>
+        <input type="file" id="cvFile" accept=".pdf,.doc,.docx" hidden />
       </div>
     </section>
 
-    <!-- Applied Opportunities -->
-    <section id="applicationsSection" class="hidden">
-      <div id="applicationsList" class="applications-stack">
-        <p class="loading-text">Fetching your submitted applications...</p>
-      </div>
+    <section class="panel hidden" id="tab-applications"><div class="pcard" id="appsList"><p class="sub">Loading…</p></div></section>
+
+    <section class="panel hidden" id="tab-settings">
+      <form class="pcard" id="pwForm">
+        <h2>Change password</h2><p class="sub">Use at least 6 characters.</p>
+        <div class="form-group"><label for="pw1">New password</label><input id="pw1" type="password" minlength="6" required autocomplete="new-password" /></div>
+        <div class="form-group"><label for="pw2">Confirm password</label><input id="pw2" type="password" minlength="6" required autocomplete="new-password" /></div>
+        <button class="btn btn-primary" id="pwBtn" type="submit">Update password</button>
+      </form>
+      <div class="pcard"><h2>Session</h2><p class="sub">Sign out of Nia on this device.</p><button class="btn btn-ghost" id="logoutBtn2" type="button"><i data-lucide="log-out" class="icon"></i> Sign out</button></div>
     </section>
   </main>
 
-  <!-- Delete CV Confirmation Modal -->
-  <div id="deleteCvModal" class="status-modal-overlay hidden" aria-modal="true" role="dialog">
-    <div class="status-modal-box">
-      <div class="status-modal-icon">🗑️</div>
-      <h3>Delete Resume / CV?</h3>
-      <p>Are you sure you want to delete your current CV? This action cannot be undone.</p>
-      <div class="modal-actions" style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.25rem;">
-        <button id="cancelDeleteCvBtn" class="btn btn-outline" style="flex: 1;">Cancel</button>
-        <button id="confirmDeleteCvBtn" class="btn btn-danger" style="flex: 1; background-color: #dc3545; color: #fff; border: none;">Confirm Delete</button>
-      </div>
-      <button id="closeDeleteCvModalBtn" class="modal-close-btn" aria-label="Close">&times;</button>
-    </div>
-  </div>
-
   <script src="profile.js"></script>
+  <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>
 </body>
 </html>
