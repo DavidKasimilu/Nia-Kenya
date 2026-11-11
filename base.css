@@ -1,0 +1,55 @@
+/* Nia design system: true black + white + green. Change --green* to retune the brand. */
+:root{--ink:#000;--ink-2:#3f3f46;--mute:#71717a;--line:#e4e4e7;--paper:#fff;--soft:#fafafa;
+--green:#08882b;--green-ink:#066c22;--green-50:#ecf8ef;--red:#dc2626;--red-50:#fef2f2;--r:12px;
+--font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);color:var(--ink);background:var(--paper);line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button,input{font:inherit;color:inherit}
+.hidden{display:none!important}
+.container{width:min(1120px,100% - 2rem);margin-inline:auto}
+.icon{width:1.1em;height:1.1em;stroke-width:2;flex:none}
+:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.7rem 1.15rem;border-radius:10px;border:1px solid transparent;font-weight:600;font-size:.95rem;cursor:pointer;transition:background .15s,border-color .15s,transform .1s}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-primary,.btn-submit{background:var(--ink);color:#fff}
+.btn-primary:hover,.btn-submit:hover{background:#27272a}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{background:var(--green-ink)}
+.btn-ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--ink)}
+.btn-lg{padding:.9rem 1.5rem;font-size:1rem}
+.btn-submit{width:100%;margin-top:.5rem}
+.badge{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .6rem;border-radius:999px;font-size:.75rem;font-weight:600;background:var(--green-50);color:var(--green-ink)}
+
+/* Forms */
+.form-group{margin-bottom:1rem}
+.form-group label{display:block;font-size:.85rem;font-weight:600;margin-bottom:.35rem}
+.form-group input{width:100%;padding:.75rem .9rem;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:.95rem}
+.form-group input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(8,136,43,.18)}
+.message{padding:.7rem .9rem;border-radius:10px;font-size:.88rem;margin-bottom:1rem}
+.message.error{background:var(--red-50);color:var(--red)}
+.message.info{background:var(--green-50);color:var(--green-ink)}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.55);backdrop-filter:blur(4px)}
+.modal{position:relative;width:100%;max-width:420px;max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:2rem 1.5rem 1.5rem;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.close-btn{position:absolute;top:.75rem;right:.75rem;width:2.25rem;height:2.25rem;border:0;border-radius:8px;background:transparent;cursor:pointer;color:var(--mute);display:grid;place-items:center}
+.close-btn:hover{background:var(--soft);color:var(--ink)}
+.modal-brand{font-size:1.4rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.25rem}
+.modal-sub{color:var(--mute);font-size:.9rem;margin-bottom:1.25rem}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:.25rem;padding:.25rem;background:var(--soft);border:1px solid var(--line);border-radius:10px;margin-bottom:1.25rem}
+.tab-btn{padding:.55rem;border:0;border-radius:8px;background:transparent;font-weight:600;font-size:.9rem;color:var(--mute);cursor:pointer}
+.tab-btn.active{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.forgot{display:block;text-align:right;font-size:.82rem;color:var(--mute);text-decoration:underline;margin:-.25rem 0 .5rem}
+.otp-title{font-size:1.2rem;text-align:center}
+.otp-desc{text-align:center;color:var(--mute);font-size:.9rem;margin:.35rem 0 1.25rem}
+.otp-input{text-align:center;letter-spacing:.4em;font-size:1.3rem!important;font-weight:700}
+.otp-footer{display:flex;justify-content:center;gap:.6rem;margin-top:1rem;font-size:.85rem}
+.link-btn{background:none;border:0;color:var(--green-ink);font-weight:600;cursor:pointer;text-decoration:underline}
+.dot-separator{color:var(--line)}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}

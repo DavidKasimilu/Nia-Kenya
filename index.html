@@ -3,33 +3,133 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nia - Opportunity Portal</title>
+  <title>Nia | Jobs, internships and attachments for Kenyan graduates</title>
+  <meta name="description" content="Nia connects Kenyan graduates and students with verified entry-level jobs, internships and industrial attachments. Create a profile once and apply in a tap." />
+  <meta name="theme-color" content="#000000" />
+  <meta property="og:title" content="Nia | Opportunities for Kenyan graduates" />
+  <meta property="og:description" content="Verified jobs, internships and attachments. Apply in a tap." />
+  <meta property="og:type" content="website" />
   <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png" />
   <link rel="apple-touch-icon" sizes="192x192" href="assets/favicon/android-chrome-192x192.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="assets/favicon/android-chrome-512x512.png" />
-
-  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="landing.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-  <main class="landing">
-    <div class="brand">
-      <div class="brand-logo-circle">
-        <img src="assets/images/logo1.png" alt="Nia Logo" class="brand-logo" />
+  <header class="nav">
+    <div class="container nav-in">
+      <a href="#top" class="wordmark" aria-label="Nia home">nia<i>.</i></a>
+      <nav class="nav-links" id="navLinks" aria-label="Main">
+        <a href="#opportunities">Opportunities</a>
+        <a href="#how">How it works</a>
+        <a href="#why">Why Nia</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="nav-cta">
+        <button id="openModalBtn" class="btn btn-ghost">Sign in</button>
+        <button class="btn btn-primary" data-open-auth="signup">Get started</button>
+        <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false"><i data-lucide="menu" class="icon"></i></button>
       </div>
-      <p class="tagline">Information You Can Trust.</p>
-      <button id="openModalBtn" class="btn btn-ghost">Get Started</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <div class="container hero">
+      <div>
+        <span class="badge"><i data-lucide="badge-check" class="icon"></i> Verified listings only</span>
+        <h1>Your first role starts <em>here.</em></h1>
+        <p class="lead">Nia brings entry-level jobs, internships and industrial attachments for Kenyan graduates and students into one trusted place. Build your profile once, then apply in a tap.</p>
+        <div class="hero-cta">
+          <button class="btn btn-green btn-lg" data-open-auth="signup">Create free account <i data-lucide="arrow-right" class="icon"></i></button>
+          <button class="btn btn-ghost btn-lg" data-open-auth="signin">Sign in</button>
+        </div>
+        <div class="checks">
+          <span><i data-lucide="check" class="icon"></i> Free for students</span>
+          <span><i data-lucide="check" class="icon"></i> Works on any phone</span>
+          <span><i data-lucide="check" class="icon"></i> Track every application</span>
+        </div>
+      </div>
+
+      <div class="preview" aria-hidden="true">
+        <div class="pv-card"><div class="pv-av">A</div><div><h4>Software Developer Intern</h4><p><i data-lucide="map-pin" class="icon"></i> Nairobi <i data-lucide="clock" class="icon"></i> 3 months</p></div><span class="badge">Internship</span></div>
+        <div class="pv-card"><div class="pv-av">B</div><div><h4>Graduate Trainee, Finance</h4><p><i data-lucide="map-pin" class="icon"></i> Mombasa <i data-lucide="clock" class="icon"></i> Full-time</p></div><span class="badge">Job</span></div>
+        <div class="pv-card"><div class="pv-av">C</div><div><h4>Industrial Attachment, Civil Eng.</h4><p><i data-lucide="map-pin" class="icon"></i> Kisumu <i data-lucide="clock" class="icon"></i> 8 weeks</p></div><span class="badge">Attachment</span></div>
+      </div>
+    </div>
+
+    <section id="opportunities" class="alt">
+      <div class="container">
+        <div class="sec-head"><span class="eyebrow">Opportunities</span><h2>Three paths, one platform</h2><p>Whether you are finishing a course or already graduated, find the next step that fits.</p></div>
+        <div class="grid3">
+          <div class="card"><div class="ic"><i data-lucide="briefcase" class="icon"></i></div><h3>Entry-level jobs</h3><p>Graduate roles from employers who are ready to hire early-career talent.</p></div>
+          <div class="card"><div class="ic"><i data-lucide="graduation-cap" class="icon"></i></div><h3>Internships</h3><p>Build real experience and a network before you leave campus.</p></div>
+          <div class="card"><div class="ic"><i data-lucide="building-2" class="icon"></i></div><h3>Attachments</h3><p>Industrial attachment placements to complete your course requirements.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="container">
+        <div class="sec-head"><span class="eyebrow">How it works</span><h2>From sign-up to applied in minutes</h2></div>
+        <div class="grid3">
+          <div class="card"><div class="step-n">STEP 1</div><h3>Create your profile</h3><p>Add your course, institution and CV once. Pick a photo or keep your default avatar.</p></div>
+          <div class="card"><div class="step-n">STEP 2</div><h3>Browse and filter</h3><p>Search by role, location and type to find listings that match you.</p></div>
+          <div class="card"><div class="step-n">STEP 3</div><h3>Apply and follow up</h3><p>Share the contact details an employer asks for, then track your applications.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="why" class="alt">
+      <div class="container">
+        <div class="sec-head"><span class="eyebrow">Why Nia</span><h2>Information you can trust</h2><p>Every listing is posted and managed by the Nia team, so you spend time applying, not second-guessing.</p></div>
+        <div class="grid3">
+          <div class="card"><div class="ic"><i data-lucide="shield-check" class="icon"></i></div><h3>Reviewed listings</h3><p>Opportunities are posted by administrators, not scraped from anywhere.</p></div>
+          <div class="card"><div class="ic"><i data-lucide="smartphone" class="icon"></i></div><h3>Built for mobile</h3><p>A fast, clean experience on the phone you already have.</p></div>
+          <div class="card"><div class="ic"><i data-lucide="lock" class="icon"></i></div><h3>Your data, protected</h3><p>Your profile and applications are visible only to you and the Nia team.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="container">
+        <div class="sec-head"><span class="eyebrow">FAQ</span><h2>Common questions</h2></div>
+        <div class="faq">
+          <details><summary>Is Nia free to use? <i data-lucide="plus" class="icon"></i></summary><p>Yes. Creating an account and applying to opportunities is free for students and graduates.</p></details>
+          <details><summary>Who can apply? <i data-lucide="plus" class="icon"></i></summary><p>Kenyan students and graduates looking for jobs, internships or attachments.</p></details>
+          <details><summary>What details will employers see? <i data-lucide="plus" class="icon"></i></summary><p>Only what you submit with an application, such as your CV and the contact details the opportunity asks for.</p></details>
+          <details><summary>I forgot my password. <i data-lucide="plus" class="icon"></i></summary><p>Use the Forgot password link on the sign-in form and we will email you a reset link.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <div class="container">
+      <div class="band">
+        <h2>Ready to find your next opportunity?</h2>
+        <p>Join Nia and apply to your first listing today.</p>
+        <button class="btn btn-green btn-lg" data-open-auth="signup">Get started free <i data-lucide="arrow-right" class="icon"></i></button>
+      </div>
     </div>
   </main>
 
-  <div id="authModal" class="modal-overlay hidden" aria-modal="true" role="dialog">
-    <div class="modal">
-      <button id="closeModalBtn" class="close-btn" aria-label="Close modal">&times;</button>
+  <footer>
+    <div class="container foot">
+      <a href="#top" class="wordmark" style="font-size:1.2rem;color:var(--ink)">nia<i>.</i></a>
+      <span>&copy; <span id="yr">2026</span> Nia Kenya. All rights reserved.</span>
+    </div>
+  </footer>
 
-      <!-- Navigation Tabs -->
+  <div id="authModal" class="modal-overlay hidden" aria-modal="true" role="dialog" aria-label="Sign in or create account">
+    <div class="modal">
+      <button id="closeModalBtn" class="close-btn" aria-label="Close"><i data-lucide="x" class="icon"></i></button>
+      <div class="modal-brand">nia<span style="color:var(--green)">.</span></div>
+      <p class="modal-sub">Sign in or create an account to continue.</p>
+
       <div class="tabs" id="modalTabs">
         <button id="tabSignIn" class="tab-btn active">Sign In</button>
         <button id="tabSignUp" class="tab-btn">Sign Up</button>
@@ -37,70 +137,53 @@
 
       <div id="authMessage" class="message hidden"></div>
 
-      <!-- Sign In Form -->
       <form id="signInForm" class="auth-form">
-        <div class="form-group">
-          <label for="signinEmail">Email</label>
-          <input type="email" id="signinEmail" required placeholder="Enter your email" autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label for="signinPassword">Password</label>
-          <input type="password" id="signinPassword" required placeholder="••••••••" autocomplete="current-password" />
-        </div>
-        <div style="text-align: right; margin-top: 0.25rem; margin-bottom: 0.5rem;">
-          <a href="reset-password.html" style="font-size: 0.8rem; color: #64748b; text-decoration: underline;">
-            Forgot password?
-          </a>
-        </div>
+        <div class="form-group"><label for="signinEmail">Email</label><input type="email" id="signinEmail" required placeholder="you@example.com" autocomplete="email" /></div>
+        <div class="form-group"><label for="signinPassword">Password</label><input type="password" id="signinPassword" required placeholder="••••••••" autocomplete="current-password" /></div>
+        <a href="reset-password.html" class="forgot">Forgot password?</a>
         <button type="submit" id="signInSubmitBtn" class="btn btn-submit">Sign In</button>
       </form>
 
-      <!-- Sign Up Form -->
       <form id="signUpForm" class="auth-form hidden">
-        <div class="form-group">
-          <label for="signupEmail">Email</label>
-          <input type="email" id="signupEmail" required placeholder="Enter a valid email address" autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label for="signupPassword">Password</label>
-          <input type="password" id="signupPassword" minlength="6" required placeholder="At least 6 characters" autocomplete="new-password" />
-        </div>
+        <div class="form-group"><label for="signupEmail">Email</label><input type="email" id="signupEmail" required placeholder="you@example.com" autocomplete="email" /></div>
+        <div class="form-group"><label for="signupPassword">Password</label><input type="password" id="signupPassword" minlength="6" required placeholder="At least 6 characters" autocomplete="new-password" /></div>
         <button type="submit" id="signUpSubmitBtn" class="btn btn-submit">Create Account</button>
       </form>
 
-      <!-- OTP Verification Form -->
       <form id="otpForm" class="auth-form hidden">
-        <div class="otp-header">
-          <h3 class="otp-title">Verify Your Email</h3>
-          <p class="otp-desc">We sent an 8-digit code to <span id="otpTargetEmail" style="font-weight: 600;"></span></p>
-        </div>
-
-        <div class="form-group">
-          <label for="otpCode" style="text-align: center;">Enter 8-Digit Code</label>
-          <input 
-            type="text" 
-            id="otpCode" 
-            inputmode="numeric" 
-            maxlength="8" 
-            placeholder="12345678" 
-            class="otp-input" 
-            required 
-            autocomplete="one-time-code" 
-          />
-        </div>
-
+        <h3 class="otp-title">Verify your email</h3>
+        <p class="otp-desc">We sent an 8-digit code to <strong id="otpTargetEmail"></strong></p>
+        <div class="form-group"><label for="otpCode" style="text-align:center">Enter 8-digit code</label><input type="text" id="otpCode" inputmode="numeric" maxlength="8" placeholder="12345678" class="otp-input" required autocomplete="one-time-code" /></div>
         <button type="submit" id="verifyOtpBtn" class="btn btn-submit">Verify</button>
-
         <div class="otp-footer">
           <button type="button" id="resendOtpBtn" class="link-btn">Resend code</button>
-          <span class="dot-separator">•</span>
+          <span class="dot-separator">&bull;</span>
           <button type="button" id="backToSignupBtn" class="link-btn">Change email</button>
         </div>
       </form>
-
     </div>
   </div>
 
   <script src="app.js"></script>
+  <!-- Lucide icons. For SRI, run: curl -s <this URL> | openssl dgst -sha384 -binary | openssl base64 -A
+       then add integrity="sha384-<result>" crossorigin="anonymous" to the tag. -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script>
+    if (window.lucide) lucide.createIcons();
+    document.getElementById("yr").textContent = new Date().getFullYear();
+    const $ = (id) => document.getElementById(id);
+    document.querySelectorAll("[data-open-auth]").forEach((b) =>
+      b.addEventListener("click", () => {
+        $("openModalBtn").click();
+        if (b.dataset.openAuth === "signup") $("tabSignUp").click();
+      })
+    );
+    $("menuBtn").addEventListener("click", () => {
+      const open = $("navLinks").classList.toggle("open");
+      $("menuBtn").setAttribute("aria-expanded", open);
+    });
+    $("navLinks").addEventListener("click", () => $("navLinks").classList.remove("open"));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("closeModalBtn").click(); });
+  </script>
 </body>
 </html>
