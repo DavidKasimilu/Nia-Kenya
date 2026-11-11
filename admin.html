@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nia - Admin Portal</title>
+  <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/favicon/android-chrome-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/favicon/android-chrome-512x512.png" />
+
+  <link 
+    rel="stylesheet" 
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" 
+    crossorigin="anonymous" 
+    referrerpolicy="no-referrer" 
+  />
+
+  <link rel="stylesheet" href="dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="nav-brand">
+      <span class="badge badge-admin">Admin Portal</span>
+    </div>
+    <div class="nav-user">
+      <a href="dashboard.html" class="nav-icon-btn" title="Student View" aria-label="Student View">
+        <img src="assets/icons/student.svg" alt="Student View" class="nav-svg-icon" />
+      </a>
+      <button id="logoutBtn" class="nav-icon-btn" title="Sign Out" aria-label="Sign Out">
+        <img src="assets/icons/user-logout.svg" alt="Sign Out" class="nav-svg-icon" />
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Admin Navigation Tabs -->
+    <div class="tabs admin-tabs">
+      <button id="tabPublish" class="tab-btn active"><i class="fa-solid fa-pen-to-square"></i> Publish</button>
+      <button id="tabControl" class="tab-btn"><i class="fa-solid fa-sliders"></i> Controls</button>
+    </div>
+
+    <!-- TAB 1: Publish Opportunity -->
+    <section id="publishSection">
+       <div class="form-box">
+        <form id="postJobForm">
+          <div class="form-group">
+            <label for="jobTitle">Job Title</label>
+            <input type="text" id="jobTitle" required placeholder="e.g. IT Support Intern" />
+          </div>
+
+          <div class="form-group">
+            <label for="companyName">Company / Organization</label>
+            <input type="text" id="companyName" required placeholder="e.g. Tech Point Solutions" />
+          </div>
+
+          <div class="form-group">
+            <label for="jobLocation">Location</label>
+            <input type="text" id="jobLocation" required placeholder="e.g. Voi / Remote" />
+          </div>
+
+          <div class="form-group">
+            <label for="jobType">Opportunity Type</label>
+            <select id="jobType">
+              <option value="Industrial Attachment">Industrial Attachment</option>
+              <option value="Internship">Internship</option>
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="jobDesc">Description & Requirements</label>
+            <textarea id="jobDesc" rows="4" required placeholder="Key responsibilities, qualifications, application deadline..."></textarea>
+          </div>
+
+          <button type="submit" id="submitBtn" class="btn btn-primary btn-full">Publish</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 2: Control Center -->
+    <section id="controlSection" class="hidden">
+      <div class="control-toolbar">
+        <div class="sub-tabs">
+          <button id="subTabOpps" class="sub-tab-btn active"><i class="fa-solid fa-briefcase"></i> Opportunities</button>
+          <button id="subTabApps" class="sub-tab-btn"><i class="fa-solid fa-file-lines"></i> Applications</button>
+          <button id="subTabUsers" class="sub-tab-btn"><i class="fa-solid fa-users"></i> Users</button>
+        </div>
+
+        <div class="search-sort-bar">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="adminSearchInput" placeholder="Search records..." />
+          </div>
+          <div class="sort-box">
+            <i class="fa-solid fa-arrow-down-wide-short sort-icon"></i>
+            <select id="adminSortSelect">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="az">Alphabetical (A-Z)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Opportunities Table -->
+      <div id="oppsControlView" class="control-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Company</th>
+              <th>Type</th>
+              <th>Location</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="oppsTableBody">
+            <tr><td colspan="5" class="loading-text">Loading opportunities...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Applications Table -->
+      <div id="appsControlView" class="control-table-wrapper hidden">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Applicant Email</th>
+              <th>Opportunity Title</th>
+              <th>Company</th>
+              <th>Resume / CV</th>
+              <th>Applied Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="appsTableBody">
+            <tr><td colspan="6" class="loading-text">Loading applications...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Users Table -->
+      <div id="usersControlView" class="control-table-wrapper hidden">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Registered</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="5" class="loading-text">Loading users...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Opportunity Modal -->
+  <div id="editOppModal" class="status-modal-overlay hidden" aria-modal="true" role="dialog">
+    <div class="status-modal-box edit-modal-box">
+      <button id="closeEditModal" class="modal-close-btn">&times;</button>
+      <h3>Edit Opportunity</h3>
+      <form id="editOppForm">
+        <input type="hidden" id="editOppId" />
+        <div class="form-group text-left">
+          <label for="editJobTitle">Job Title</label>
+          <input type="text" id="editJobTitle" required />
+        </div>
+        <div class="form-group text-left">
+          <label for="editCompanyName">Company</label>
+          <input type="text" id="editCompanyName" required />
+        </div>
+        <div class="form-group text-left">
+          <label for="editJobLocation">Location</label>
+          <input type="text" id="editJobLocation" required />
+        </div>
+        <div class="form-group text-left">
+          <label for="editJobType">Opportunity Type</label>
+          <select id="editJobType">
+            <option value="Industrial Attachment">Industrial Attachment</option>
+            <option value="Internship">Internship</option>
+            <option value="Full-time">Full-time</option>
+            <option value="Part-time">Part-time</option>
+          </select>
+        </div>
+        <div class="form-group text-left">
+          <label for="editJobDesc">Description</label>
+          <textarea id="editJobDesc" rows="4" required></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelEditBtn" class="btn btn-outline">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Notification / Status Modal -->
+  <div id="statusModal" class="status-modal-overlay hidden">
+    <div class="status-modal-box">
+      <div id="statusModalIcon" class="status-modal-icon">✅</div>
+      <h3 id="statusModalTitle">Status</h3>
+      <p id="statusModalMessage">Notification message.</p>
+      <button id="closeStatusModalBtn" class="btn btn-primary btn-full">Got it</button>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

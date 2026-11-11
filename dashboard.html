@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nia - Dashboard</title>
+  <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/favicon/android-chrome-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/favicon/android-chrome-512x512.png" />
+
+  <link 
+    rel="stylesheet" 
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" 
+    crossorigin="anonymous" 
+    referrerpolicy="no-referrer" 
+  />
+
+  <link rel="stylesheet" href="dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="nav-brand">
+      <a href="profile.html" class="nav-icon-btn" title="View Profile" aria-label="Profile">
+        <img src="assets/icons/profile.svg" alt="Profile" class="nav-svg-icon" />
+      </a>
+    </div>
+    <div class="nav-user">
+      <a id="adminPortalLink" href="admin.html" class="btn btn-outline hidden">Admin Panel</a>
+      <button id="logoutBtn" class="nav-icon-btn" title="Sign Out" aria-label="Sign Out">
+        <img src="assets/icons/user-logout.svg" alt="Sign Out" class="nav-svg-icon" />
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="dash-header"></section>
+    
+    <div class="control-toolbar" style="margin-bottom: 1.5rem;">
+      <div class="search-sort-bar" style="width: 100%; display: flex; flex-wrap: wrap; gap: 0.75rem;">
+        
+        <div class="search-box" style="flex: 2; min-width: 220px;">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="searchInput" placeholder="Search title, keyword" />
+        </div>
+
+        <!-- Location Search -->
+        <div class="search-box" style="flex: 1.5; min-width: 150px;">
+          <i class="fa-solid fa-location-dot search-icon"></i>
+          <input type="text" id="locationFilterInput" placeholder="Filter by location" />
+        </div>
+
+        <!-- Opportunity Type Dropdown -->
+        <div class="sort-box" style="flex: 1.2; min-width: 160px;">
+          <i class="fa-solid fa-filter sort-icon"></i>
+          <select id="typeFilterSelect">
+            <option value="">All Types</option>
+            <option value="Industrial Attachment">Industrial Attachment</option>
+            <option value="Internship">Internship</option>
+            <option value="Full-time">Full-time</option>
+            <option value="Part-time">Part-time</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="statusMessage" class="message hidden"></div>
+
+    <section id="opportunitiesList" class="cards-grid">
+      <p class="loading-text">Fetching listings...</p>
+    </section>
+  </main>
+  
+  <!-- CV Advisory Modal -->
+  <div id="cvAdviceModal" class="status-modal-overlay hidden" aria-modal="true" role="dialog">
+    <div class="status-modal-box">
+      <div class="status-modal-icon">📄</div>
+      <h3>Attach a Resume?</h3>
+      <p>You haven't uploaded a CV yet. <strong>Attaching a CV gives you a significant advantage</strong> with hiring managers.</p>
+      <div class="modal-actions" style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.25rem;">
+        <a href="profile.html" class="btn btn-outline" style="flex: 1;">Upload CV</a>
+      </div>
+      <button id="closeCvAdviceBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+    </div>
+  </div>
+
+  <!-- Admin Restriction Advisory Modal -->
+  <div id="adminNoticeModal" class="status-modal-overlay hidden" aria-modal="true" role="dialog">
+    <div class="status-modal-box">
+      <div class="status-modal-icon">🛡️</div>
+      <h3>Administrator Account</h3>
+      <p>As an administrator, you are restricted from submitting applications to opportunity listings.</p>
+      <div class="modal-actions" style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.25rem;">
+        <button id="closeAdminNoticeBtn" class="btn btn-primary" style="flex: 1;">Got it</button>
+      </div>
+      <button id="dismissAdminNoticeBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+    </div>
+  </div>
+
+  <!-- Welcome Modal for New Users -->
+  <div id="welcomeModal" class="status-modal-overlay hidden" aria-modal="true" role="dialog">
+    <div class="welcome-modal-box">
+      <button id="closeWelcomeModal" class="modal-close-btn" aria-label="Close">&times;</button>
+      <div class="welcome-logo-wrap">
+        <img src="assets/images/logo2.png" alt="Welcome to Nia" class="welcome-logo" />
+      </div>
+      <h3 id="welcomeHeading">Welcome!</h3>
+      <p>Your portal to exciting graduate roles and career opportunities is ready.</p>
+      <button id="dismissWelcomeBtn" class="btn btn-primary btn-full">Get Started</button>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

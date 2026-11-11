@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nia - My Profile</title>
+  <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/favicon/android-chrome-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="assets/favicon/android-chrome-512x512.png" />
+
+  <link 
+    rel="stylesheet" 
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" 
+    integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" 
+    crossorigin="anonymous" 
+    referrerpolicy="no-referrer" 
+  />
+
+  <link rel="stylesheet" href="profile.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="nav-brand">
+      <a href="dashboard.html" class="nav-icon-btn" title="Back to Feed" aria-label="Back">
+        <i class="fa-solid fa-arrow-left"></i>
+      </a>
+      <span class="navbar-title">Profile</span>
+    </div>
+    <div class="nav-user">
+      <button id="logoutBtn" class="nav-icon-btn" title="Sign Out" aria-label="Sign Out">
+        <img src="assets/icons/user-logout.svg" alt="Sign Out" class="nav-svg-icon" />
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="profile-header-card">
+      <div class="profile-avatar-circle">
+        <img src="assets/icons/profile.svg" alt="Avatar" class="avatar-icon" />
+      </div>
+      <div class="profile-info-summary">
+        <h2 id="displayFullName">Loading...</h2>
+        <p id="displayEmail">user@example.com</p>
+      </div>
+    </section>
+
+    <!-- Nav Tabs -->
+    <div class="tabs profile-tabs">
+      <button id="tabBasicInfo" class="tab-btn active">
+        <i class="fa-regular fa-user"></i> Basic Info
+      </button>
+      <button id="tabApplications" class="tab-btn">
+        <i class="fa-solid fa-briefcase"></i> Applied Opportunities
+      </button>
+    </div>
+
+    <!-- Feedback Msg Box -->
+    <div id="statusMessage" class="message hidden"></div>
+
+    <!-- Edit Info -->
+    <section id="basicInfoSection">
+      <div class="form-box">
+        <form id="profileForm">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="profileEmail">Email (Read Only)</label>
+              <input type="email" id="profileEmail" disabled class="input-disabled" />
+            </div>
+
+            <div class="form-group">
+              <label for="profileFullName">Full Name</label>
+              <input type="text" id="profileFullName" placeholder="e.g. Jane Doe" required />
+            </div>
+
+            <div class="form-group">
+              <label for="profilePhone">Phone Number</label>
+              <input type="tel" id="profilePhone" placeholder="e.g. +254 712 345 678" />
+            </div>
+
+            <div class="form-group">
+              <label for="profileInstitution">Institution / College</label>
+              <input type="text" id="profileInstitution" placeholder="e.g. Taita Taveta University" />
+            </div>
+
+            <div class="form-group form-span-2">
+              <label for="profileCourse">Course / Field of Study</label>
+              <input type="text" id="profileCourse" placeholder="e.g. Diploma in Information Technology" />
+            </div>
+
+            <div class="form-group form-span-2">
+              <label for="profileBio">Bio / Career Summary</label>
+              <textarea id="profileBio" rows="3" placeholder="Brief summary about your career goals and technical skills..."></textarea>
+            </div>
+
+            <!-- Styled CV Upload Area -->
+            <div class="form-group form-span-2">
+              <label for="profileResume">Resume / CV (PDF or DOCX, max 30MB)</label>
+              <div class="file-upload-wrapper">
+                <input type="file" id="profileResume" accept=".pdf,.doc,.docx" class="file-input-hidden" />
+                <label for="profileResume" class="file-upload-box">
+                  <i class="fa-solid fa-cloud-arrow-up file-upload-icon"></i>
+                  <span id="fileUploadName" class="file-upload-text">Choose a file or drag & drop</span>
+                  <span class="file-upload-subtext">PDF, DOC, DOCX up to 30MB</span>
+                </label>
+              </div>
+              
+              <!-- Resume Status & Delete Action Bar -->
+              <div class="resume-actions-bar" style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div id="resumeStatus" class="resume-status-text"></div>
+                <button type="button" id="deleteCvBtn" class="btn btn-danger hidden" style="background-color: #dc3545; color: #fff; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 6px; border: none; cursor: pointer;">
+                  <i class="fa-solid fa-trash-can"></i> Delete CV
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" id="saveProfileBtn" class="btn btn-primary btn-full" style="margin-top: 1.5rem;">
+            Save Profile
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Applied Opportunities -->
+    <section id="applicationsSection" class="hidden">
+      <div id="applicationsList" class="applications-stack">
+        <p class="loading-text">Fetching your submitted applications...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Delete CV Confirmation Modal -->
+  <div id="deleteCvModal" class="status-modal-overlay hidden" aria-modal="true" role="dialog">
+    <div class="status-modal-box">
+      <div class="status-modal-icon">🗑️</div>
+      <h3>Delete Resume / CV?</h3>
+      <p>Are you sure you want to delete your current CV? This action cannot be undone.</p>
+      <div class="modal-actions" style="display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.25rem;">
+        <button id="cancelDeleteCvBtn" class="btn btn-outline" style="flex: 1;">Cancel</button>
+        <button id="confirmDeleteCvBtn" class="btn btn-danger" style="flex: 1; background-color: #dc3545; color: #fff; border: none;">Confirm Delete</button>
+      </div>
+      <button id="closeDeleteCvModalBtn" class="modal-close-btn" aria-label="Close">&times;</button>
+    </div>
+  </div>
+
+  <script src="profile.js"></script>
+</body>
+</html>
