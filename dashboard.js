@@ -1,356 +1,99 @@
 const GATEWAY_URL = "https://nia-gateway.davidkasimilu71.workers.dev";
 const EDGE_KEY = "cf-worker-edge-managed";
+const sb = window.supabase ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const icons = () => window.__icons && window.__icons();
+const TYPES = ["All", "Job", "Internship", "Attachment"];
+const state = { user: null, profile: null, isAdmin: false, opps: [], applied: new Set(), fields: {}, type: "All", current: null };
 
-const supabaseClient = window.supabase
-  ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : null;
-
-const ADMIN_EMAILS = [
-  "davidkasimilu71@gmail.com",
-  "nkepedavid@gmail.com"
-];
-
-let cachedOpportunities = [];
-let userAppliedIds = new Set();
-let pendingOpportunityId = null;
-let currentUserProfile = null;
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); }
+function ago(iso) { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "1 day ago" : d < 30 ? d + " days ago" : new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short" }); }
+function isOpen(o) { return o.status !== "closed" && (!o.deadline || new Date(o.deadline) > new Date()); }
+function avatarHtml(p, email) { const n = (p?.full_name || email || "?").trim()[0].toUpperCase(); return p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n); }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!supabaseClient) {
-    console.error("Supabase client failed to initialize.");
-    return;
-  }
+  if (!sb) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return (location.href = "index.html");
+  state.user = session.user;
+  const { data: p } = await sb.from("profiles").select("status, role, resume_url, full_name, phone, whatsapp, county, avatar_url").eq("id", session.user.id).maybeSingle();
+  if (p?.status === "banned") { await sb.auth.signOut(); alert("Your account has been suspended. Please contact administration."); return (location.href = "index.html"); }
+  state.profile = p || {}; state.isAdmin = p?.role === "admin";
 
-  // Auth Check & Ban verification
-  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  $("avatarBtn").innerHTML = avatarHtml(p, session.user.email);
+  $("menuName").textContent = p?.full_name || "Student"; $("menuEmail").textContent = session.user.email;
+  if (state.isAdmin) $("adminLink").classList.remove("hidden");
+  $("avatarBtn").onclick = (e) => { e.stopPropagation(); const m = $("menu"); m.classList.toggle("hidden"); $("avatarBtn").setAttribute("aria-expanded", !m.classList.contains("hidden")); };
+  document.addEventListener("click", (e) => { if (!$("menu").contains(e.target)) $("menu").classList.add("hidden"); });
+  $("logoutBtn").onclick = async () => { await sb.auth.signOut(); location.href = "index.html"; };
 
-  if (sessionError || !session) {
-    window.location.href = "index.html";
-    return;
-  }
+  $("chips").innerHTML = TYPES.map((t) => `<button class="chip${t === "All" ? " on" : ""}" data-t="${t}">${t === "All" ? "All" : t + "s"}</button>`).join("");
+  $("chips").onclick = (e) => { const b = e.target.closest(".chip"); if (!b) return; state.type = b.dataset.t; document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); render(); };
+  $("searchInput").oninput = render; $("locationFilterInput").oninput = render;
+  ["applyClose", "applyCancel"].forEach((id) => ($(id).onclick = closeApply));
+  $("applyModal").onclick = (e) => { if (e.target === $("applyModal")) closeApply(); };
+  $("applyForm").onsubmit = submitApply;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeApply(); });
 
-  const { data: profile } = await supabaseClient
-    .from("profiles")
-    .select("status, role, resume_url")
-    .eq("id", session.user.id)
-    .maybeSingle();
-
-  if (profile && profile.status === "banned") {
-    await supabaseClient.auth.signOut();
-    alert("Access Denied: Your account has been suspended by an administrator.");
-    window.location.href = "index.html";
-    return;
-  }
-
-  currentUserProfile = profile;
-  const user = session.user;
-  const userEmail = user.email ? user.email.toLowerCase() : "";
-  const isAdmin = ADMIN_EMAILS.includes(userEmail) || profile?.role === "admin";
-
-  // Reveal Admin Portal Button if Admin
-  const adminPortalLink = document.getElementById("adminPortalLink");
-  if (adminPortalLink && isAdmin) {
-    adminPortalLink.classList.remove("hidden");
-  }
-
-  // First-Time User Welcome Modal Check
-  checkFirstTimeWelcome(user);
-
-  // Logout 
-  const logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async () => {
-      await supabaseClient.auth.signOut();
-      window.location.href = "index.html";
-    });
-  }
-
-  // CV Modal & Admin Modal Handlers
-  setupCvModal();
-  setupAdminNoticeModal();
-
-  // Setup Filters
-  const searchInput = document.getElementById("searchInput");
-  const locationInput = document.getElementById("locationFilterInput");
-  const typeSelect = document.getElementById("typeFilterSelect");
-
-  if (searchInput) searchInput.addEventListener("input", filterAndRenderFeed);
-  if (locationInput) locationInput.addEventListener("input", filterAndRenderFeed);
-  if (typeSelect) typeSelect.addEventListener("change", filterAndRenderFeed);
-
-  // Initial Load of Opportunities & Applications
-  await loadOpportunities(user);
+  const [o, a, f, n] = await Promise.all([
+    sb.from("opportunities").select("*").order("created_at", { ascending: false }),
+    sb.from("applications").select("opportunity_id").eq("user_id", session.user.id),
+    sb.from("application_fields").select("*"),
+    sb.from("announcements").select("message").eq("active", true).order("created_at", { ascending: false }).limit(1),
+  ]);
+  state.opps = o.data || []; state.applied = new Set((a.data || []).map((x) => x.opportunity_id));
+  (f.data || []).forEach((x) => (state.fields[x.key] = x));
+  if (n.data?.[0]) { $("announceText").textContent = n.data[0].message; $("announce").classList.remove("hidden"); }
+  if (o.error) $("feed").innerHTML = `<div class="empty">Could not load opportunities. Please refresh.</div>`; else render();
+  icons();
 });
 
-// Admin Notice Modal Handler
-function setupAdminNoticeModal() {
-  const adminModal = document.getElementById("adminNoticeModal");
-  const closeAdminBtn = document.getElementById("closeAdminNoticeBtn");
-  const dismissAdminBtn = document.getElementById("dismissAdminNoticeBtn");
-
-  const hideAdminModal = () => {
-    if (adminModal) adminModal.classList.add("hidden");
-  };
-
-  if (closeAdminBtn) closeAdminBtn.addEventListener("click", hideAdminModal);
-  if (dismissAdminBtn) dismissAdminBtn.addEventListener("click", hideAdminModal);
-
-  if (adminModal) {
-    adminModal.addEventListener("click", (e) => {
-      if (e.target === adminModal) hideAdminModal();
-    });
-  }
+function render() {
+  const q = $("searchInput").value.trim().toLowerCase(), loc = $("locationFilterInput").value.trim().toLowerCase();
+  const list = state.opps.filter((o) => (state.type === "All" || o.type?.toLowerCase() === state.type.toLowerCase()) && (!q || (o.title + " " + o.company).toLowerCase().includes(q)) && (!loc || (o.location || "").toLowerCase().includes(loc)));
+  $("count").textContent = `${list.length} ${list.length === 1 ? "opportunity" : "opportunities"}`;
+  $("feed").innerHTML = list.length ? list.map(card).join("") : `<div class="empty"><i data-lucide="search-x" class="icon"></i><p>No opportunities match your filters.</p></div>`;
+  $("feed").querySelectorAll("[data-apply]").forEach((b) => (b.onclick = () => openApply(b.dataset.apply)));
+  icons();
 }
 
-function showAdminNotice() {
-  const adminModal = document.getElementById("adminNoticeModal");
-  if (adminModal) {
-    adminModal.classList.remove("hidden");
-  } else {
-    alert("Administrators are restricted from applying for opportunities.");
-  }
+function card(o) {
+  const done = state.applied.has(o.id), open = isOpen(o);
+  const btn = done ? `<span class="badge"><i data-lucide="check" class="icon"></i> Applied</span>` : open ? `<button class="btn btn-primary" data-apply="${esc(o.id)}">Apply <i data-lucide="arrow-right" class="icon"></i></button>` : `<span class="badge gray">Closed</span>`;
+  return `<article class="job"><div class="job-top"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div><h3>${esc(o.title)}</h3><div class="company">${esc(o.company)}</div></div></div>
+  <div class="meta"><span><i data-lucide="map-pin" class="icon"></i>${esc(o.location)}</span><span><i data-lucide="tag" class="icon"></i>${esc(o.type)}</span><span><i data-lucide="clock" class="icon"></i>${ago(o.created_at)}</span>${o.deadline ? `<span><i data-lucide="calendar" class="icon"></i>Closes ${new Date(o.deadline).toLocaleDateString("en-KE", { day: "numeric", month: "short" })}</span>` : ""}</div>
+  <p class="desc">${esc(o.description)}</p><div class="job-foot"><span class="badge gray">${esc(o.type)}</span>${btn}</div></article>`;
 }
 
-// CV Advice Modal Setup
-function setupCvModal() {
-  const cvModal = document.getElementById("cvAdviceModal");
-  const closeCvAdviceBtn = document.getElementById("closeCvAdviceBtn");
-  const proceedWithoutCvBtn = document.getElementById("proceedWithoutCvBtn");
-
-  if (closeCvAdviceBtn && cvModal) {
-    closeCvAdviceBtn.addEventListener("click", () => {
-      cvModal.classList.add("hidden");
-      pendingOpportunityId = null;
-    });
-  }
-
-  if (proceedWithoutCvBtn && cvModal) {
-    proceedWithoutCvBtn.addEventListener("click", async () => {
-      cvModal.classList.add("hidden");
-      if (pendingOpportunityId) {
-        await executeApplication(pendingOpportunityId, null);
-        pendingOpportunityId = null;
-      }
-    });
-  }
-
-  window.addEventListener("click", (e) => {
-    if (e.target === cvModal) {
-      cvModal.classList.add("hidden");
-      pendingOpportunityId = null;
-    }
-  });
+function fieldHtml(k) {
+  const f = state.fields[k]; if (!f) return "";
+  const pre = state.profile?.[k] || "", id = "f_" + k, lab = `<label for="${id}">${esc(f.label)}</label>`;
+  let inp;
+  if (f.input_type === "textarea") inp = `<textarea id="${id}" name="${k}" rows="3" required>${esc(pre)}</textarea>`;
+  else if (f.input_type === "select" || f.input_type === "boolean") {
+    const opts = f.input_type === "boolean" ? ["Yes", "No"] : f.options || [];
+    inp = `<select id="${id}" name="${k}" required><option value="">Select…</option>${opts.map((x) => `<option>${esc(x)}</option>`).join("")}</select>`;
+  } else inp = `<input id="${id}" name="${k}" type="${esc(f.input_type)}" value="${esc(pre)}" required />`;
+  return `<div class="form-group">${lab}${inp}${f.help_text ? `<small style="color:var(--mute)">${esc(f.help_text)}</small>` : ""}</div>`;
 }
 
-// Welcome Modal Handler
-function checkFirstTimeWelcome(user) {
-  const welcomeKey = `nia_welcomed_${user.id}`;
-  const alreadyWelcomed = localStorage.getItem(welcomeKey);
-
-  if (!alreadyWelcomed) {
-    const welcomeModal = document.getElementById("welcomeModal");
-    const welcomeHeading = document.getElementById("welcomeHeading");
-    const closeBtn = document.getElementById("closeWelcomeModal");
-    const dismissBtn = document.getElementById("dismissWelcomeBtn");
-
-    let firstName = "";
-    if (user.user_metadata?.first_name) {
-      firstName = user.user_metadata.first_name;
-    } else if (user.user_metadata?.full_name) {
-      firstName = user.user_metadata.full_name.split(" ")[0];
-    } else if (user.email) {
-      const prefix = user.email.split("@")[0].replace(/[^a-zA-Z]/g, " ").trim();
-      firstName = prefix.split(" ")[0] || "User";
-      firstName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-    }
-
-    if (welcomeHeading) {
-      welcomeHeading.textContent = `Welcome, ${firstName}!`;
-    }
-
-    if (welcomeModal) {
-      welcomeModal.classList.remove("hidden");
-
-      const hideModal = () => {
-        welcomeModal.classList.add("hidden");
-        localStorage.setItem(welcomeKey, "true");
-      };
-
-      if (closeBtn) closeBtn.addEventListener("click", hideModal);
-      if (dismissBtn) dismissBtn.addEventListener("click", hideModal);
-
-      welcomeModal.addEventListener("click", (e) => {
-        if (e.target === welcomeModal) hideModal();
-      });
-    }
-  }
+function openApply(id) {
+  if (state.isAdmin) return toast("Administrators can't apply for opportunities.");
+  const o = state.opps.find((x) => x.id === id); if (!o) return;
+  state.current = o; $("applyTitle").textContent = o.title; $("applyCompany").textContent = `${o.company} · ${o.location}`;
+  $("applyFields").innerHTML = (o.required_fields || []).map(fieldHtml).join("");
+  const noCv = !state.profile?.resume_url; $("applyWarn").classList.toggle("hidden", !noCv); $("applySubmit").disabled = noCv;
+  $("applyMsg").classList.add("hidden"); $("applyModal").classList.remove("hidden"); icons();
 }
+function closeApply() { $("applyModal").classList.add("hidden"); }
 
-// Fetch all listings and applications
-async function loadOpportunities(user) {
-  const container = document.getElementById("opportunitiesList");
-  if (!container || !supabaseClient) return;
-
-  const [oppsRes, appsRes] = await Promise.all([
-    supabaseClient.from("opportunities").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("applications").select("opportunity_id").eq("user_id", user.id)
-  ]);
-
-  if (oppsRes.error) {
-    container.innerHTML = `<p class="message error">Could not load opportunities: ${oppsRes.error.message}</p>`;
-    return;
-  }
-
-  cachedOpportunities = oppsRes.data || [];
-  userAppliedIds = new Set((appsRes.data || []).map((app) => app.opportunity_id));
-
-  filterAndRenderFeed();
-}
-
-// Filtering Logic
-function filterAndRenderFeed() {
-  const container = document.getElementById("opportunitiesList");
-  if (!container) return;
-
-  const keyword = (document.getElementById("searchInput")?.value || "").toLowerCase().trim();
-  const location = (document.getElementById("locationFilterInput")?.value || "").toLowerCase().trim();
-  const selectedType = document.getElementById("typeFilterSelect")?.value || "";
-
-  const filtered = cachedOpportunities.filter((opp) => {
-    const matchesKeyword =
-      !keyword ||
-      (opp.title && opp.title.toLowerCase().includes(keyword)) ||
-      (opp.company && opp.company.toLowerCase().includes(keyword)) ||
-      (opp.description && opp.description.toLowerCase().includes(keyword));
-
-    const matchesLocation =
-      !location ||
-      (opp.location && opp.location.toLowerCase().includes(location));
-
-    const matchesType =
-      !selectedType ||
-      (opp.type && opp.type.toLowerCase() === selectedType.toLowerCase());
-
-    return matchesKeyword && matchesLocation && matchesType;
-  });
-
-  if (filtered.length === 0) {
-    container.innerHTML = `<p class="loading-text">No opportunities found matching your search criteria.</p>`;
-    return;
-  }
-
-  container.innerHTML = filtered.map((opp) => {
-    const hasApplied = userAppliedIds.has(opp.id);
-    return `
-      <div class="card" id="card-${opp.id}">
-        <div class="card-body">
-          <h3>${opp.title}</h3>
-          <div class="card-meta">
-            <span><strong>${opp.company}</strong></span>
-            <span>•</span>
-            <span>${opp.location}</span>
-            <span>•</span>
-            <span>${opp.type}</span>
-          </div>
-          <p class="card-desc">${opp.description}</p>
-        </div>
-        <div class="card-action">
-          ${
-            hasApplied
-              ? `<button class="btn btn-applied" disabled>Applied</button>`
-              : `<button class="btn btn-primary" onclick="applyOpportunity('${opp.id}')">Apply</button>`
-          }
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-// Check Profile Role & CV before Application
-window.applyOpportunity = async function (opportunityId) {
-  if (!supabaseClient) return;
-
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) {
-    window.location.href = "index.html";
-    return;
-  }
-
-  const userEmail = user.email ? user.email.toLowerCase() : "";
-
-  // Fetch or use cached profile to verify role
-  if (!currentUserProfile) {
-    const { data: profile } = await supabaseClient
-      .from("profiles")
-      .select("status, role, resume_url")
-      .eq("id", user.id)
-      .maybeSingle();
-    currentUserProfile = profile;
-  }
-
-  const isAdmin = ADMIN_EMAILS.includes(userEmail) || currentUserProfile?.role === "admin";
-
-  // Prevent Admins from applying
-  if (isAdmin) {
-    showAdminNotice();
-    return;
-  }
-
-  // If no CV uploaded, open advisory modal
-  if (!currentUserProfile?.resume_url) {
-    pendingOpportunityId = opportunityId;
-    const cvModal = document.getElementById("cvAdviceModal");
-    if (cvModal) {
-      cvModal.classList.remove("hidden");
-      return;
-    }
-  }
-
-  // If non-admin and CV check passes, execute application
-  await executeApplication(opportunityId, currentUserProfile?.resume_url || null);
-};
-
-// Database Insertion
-async function executeApplication(opportunityId, resumeUrl) {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) return;
-
-  const { error } = await supabaseClient.from("applications").insert([
-    {
-      opportunity_id: opportunityId,
-      user_id: user.id,
-      user_email: user.email,
-      resume_url: resumeUrl
-    },
-  ]);
-
-  const statusMsg = document.getElementById("statusMessage");
-
-  if (error) {
-    if (statusMsg) {
-      statusMsg.className = "message error";
-      statusMsg.textContent = "Application failed: " + error.message;
-      statusMsg.classList.remove("hidden");
-    }
-    return;
-  }
-
-  userAppliedIds.add(opportunityId);
-
-  if (statusMsg) {
-    statusMsg.className = "message success";
-    statusMsg.textContent = "Application submitted successfully!";
-    statusMsg.classList.remove("hidden");
-  }
-
-  const cardAction = document.querySelector(`#card-${opportunityId} .card-action`);
-  if (cardAction) {
-    cardAction.innerHTML = `<button class="btn btn-applied" disabled>Applied</button>`;
-  }
+async function submitApply(e) {
+  e.preventDefault(); const o = state.current; if (!o) return;
+  const answers = {}; new FormData($("applyForm")).forEach((v, k) => (answers[k] = String(v).trim()));
+  const btn = $("applySubmit"); btn.disabled = true; btn.textContent = "Submitting…";
+  const { error } = await sb.from("applications").insert([{ opportunity_id: o.id, user_id: state.user.id, user_email: state.user.email, resume_url: state.profile.resume_url, answers }]);
+  btn.disabled = false; btn.textContent = "Submit application";
+  if (error) { const m = $("applyMsg"); m.className = "message error"; m.textContent = error.code === "23505" ? "You have already applied to this opportunity." : error.message.replace(/^.*Missing required detail: /, "Please fill in: "); return; }
+  state.applied.add(o.id); closeApply(); render(); toast("Application submitted. Good luck!");
 }
