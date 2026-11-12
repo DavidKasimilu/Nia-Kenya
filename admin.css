@@ -28,7 +28,7 @@ aside .tag{font-size:.65rem;letter-spacing:.08em;background:var(--green);padding
 .toolbar input,.toolbar select,.sel{padding:.65rem .8rem;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:.9rem}
 .toolbar input{flex:1;min-width:180px}
 .b-published,.b-active,.b-contacted,.b-shortlisted{background:var(--green-50);color:var(--green-ink)}
-.b-open{background:#fffbeb;color:#92400e}.b-resolved{background:var(--green-50);color:var(--green-ink)}.b-dismissed,.b-withdrawn,.b-draft,.b-off,.b-new,.b-reviewing{background:#f4f4f5;color:var(--ink-2)}.b-closed,.b-banned,.b-rejected{background:var(--red-50);color:var(--red)}
+.b-paid{background:var(--green-50);color:var(--green-ink)}.b-gift{background:#f4f4f5;color:var(--ink-2)}.b-open{background:#fffbeb;color:#92400e}.b-resolved{background:var(--green-50);color:var(--green-ink)}.b-dismissed,.b-withdrawn,.b-draft,.b-off,.b-new,.b-reviewing{background:#f4f4f5;color:var(--ink-2)}.b-closed,.b-banned,.b-rejected{background:var(--red-50);color:var(--red)}
 .m-lg{max-width:620px}
 .m-lg textarea,.m-lg select{width:100%;padding:.75rem .9rem;border:1px solid var(--line);border-radius:10px;font-size:.95rem;background:#fff}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 .9rem}

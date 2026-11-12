@@ -38,10 +38,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
   let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
-  if (!isAdmin && ["fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
+  if (!isAdmin && ["billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
   document.querySelectorAll("#nav a[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === v));
   $("view").onclick = null; $("view").innerHTML = empty("Loading…");
   try { await views[v](); } catch (e) { $("view").innerHTML = empty("Something went wrong: " + e.message); }
@@ -247,4 +247,32 @@ async function reportsView() {
     $("rSave").onclick = async () => { const { error } = await sb.from("listing_reports").update({ status: $("rNew").value, admin_notes: $("rNote").value.trim() || null }).eq("id", x.id); if (error) return toast(error.message); await log("report." + $("rNew").value, "report", x.id, { listing: o.title }); closeModal(); toast("Saved."); route(); };
     if ($("rClose")) $("rClose").onclick = async () => { const { error } = await sb.from("opportunities").update({ status: "closed" }).eq("id", o.id); if (error) return toast(error.message); await log("opportunity.closed", "opportunity", o.id, { title: o.title, via: "report" }); closeModal(); toast("Listing closed."); route(); };
   };
+}
+
+/* ---------- Billing ---------- */
+async function billingView() {
+  const since = new Date(Date.now() - 30 * 864e5).toISOString();
+  const [st, pl, py, act, rev] = await Promise.all([
+    sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle(),
+    sb.from("plans").select("*").eq("code", "monthly").maybeSingle(),
+    sb.from("payments").select("*").order("created_at", { ascending: false }).limit(50),
+    sb.from("subscriptions").select("user_id", { count: "exact", head: true }).gt("paid_until", new Date().toISOString()),
+    sb.from("payments").select("amount_kes").eq("source", "paystack").gte("created_at", since).limit(5000),
+  ]);
+  const on = st.data?.value === true, plan = pl.data || { amount_kes: 250 }, list = py.data || [], rev30 = (rev.data || []).reduce((s, p) => s + Number(p.amount_kes), 0);
+  const ids = [...new Set(list.map((p) => p.user_id).filter(Boolean))], pr = ids.length ? (await sb.from("profiles").select("id,email").in("id", ids)).data || [] : [], E = Object.fromEntries(pr.map((x) => [x.id, x.email]));
+  const stat = (i, l, v, n) => `<div class="stat"><div class="l"><i data-lucide="${i}" class="icon"></i>${l}</div><div class="v">${v}</div><div class="n">${n || "&nbsp;"}</div></div>`;
+  $("view").innerHTML = head("Billing", "Membership settings and payments.") +
+    `<div class="stats" style="grid-template-columns:repeat(3,1fr)">${stat("users", "Active members", act.count ?? 0)}${stat("banknote", "Revenue, last 30 days", "KES " + rev30.toLocaleString("en-KE"), "Paystack payments")}${stat("lock", "Paywall", on ? "ON" : "OFF", on ? "Applying needs a membership" : "Everyone applies free")}</div>
+    <div class="cols"><div class="panel"><h2>Paywall</h2><p style="color:var(--ink-2);font-size:.9rem;margin-bottom:1rem">${on ? "Students need an active membership to apply." : "Everyone can apply for free. Turn this on when you are ready to charge."}</p><button class="btn ${on ? "btn-ghost" : "btn-green"}" id="payToggle">${on ? "Turn paywall off" : "Turn paywall on"}</button>
+    <h2 style="margin-top:1.4rem">Monthly price (KES)</h2><div class="toolbar"><input type="number" id="planAmt" min="1" value="${esc(plan.amount_kes)}"><button class="btn btn-primary" id="planSave">Save</button></div></div>
+    <div class="panel"><h2>Give free membership</h2><form id="grantForm"><div class="form-group"><label>Student email</label><input id="gEmail" type="email" required></div><div class="form-group"><label>Days</label><input id="gDays" type="number" min="1" max="365" value="30" required></div><div class="form-group"><label>Note (optional)</label><input id="gNote"></div><button class="btn btn-primary">Grant</button></form></div></div>
+    <h2 style="margin:1.5rem 0 .75rem;font-size:1.05rem">Recent payments</h2><div class="rows">${list.map((p) => `<div class="r"><div class="grow"><h3>${p.source === "admin_grant" ? "Free membership" : "KES " + Number(p.amount_kes)}</h3><p>${esc(E[p.user_id] || "deleted account")} · ${dt(p.created_at)} · ${p.days_added} days</p></div>${badge(p.source === "admin_grant" ? "off" : "active").replace("off", "gift").replace("active", "paid")}</div>`).join("") || empty("No payments yet.")}</div>`;
+  $("payToggle").onclick = async () => {
+    if (!on && !(await confirmBox("Turn the paywall on?", "Students without an active membership will no longer be able to apply.", "Turn on"))) return;
+    const { error } = await sb.from("app_settings").upsert({ key: "subscriptions_required", value: !on, updated_at: new Date().toISOString() }); if (error) return toast(error.message);
+    await log("paywall." + (on ? "off" : "on"), "settings", "subscriptions_required"); toast("Paywall " + (on ? "off" : "on") + "."); route();
+  };
+  $("planSave").onclick = async () => { const v = parseInt($("planAmt").value, 10); if (!(v > 0)) return toast("Enter a valid price."); const { error } = await sb.from("plans").update({ amount_kes: v }).eq("code", "monthly"); if (error) return toast(error.message); await log("plan.price", "plan", "monthly", { amount_kes: v }); toast("Price updated."); };
+  $("grantForm").onsubmit = async (e) => { e.preventDefault(); const { error } = await sb.rpc("admin_grant_subscription", { p_email: $("gEmail").value.trim(), p_days: parseInt($("gDays").value, 10), p_note: $("gNote").value.trim() || null }); if (error) return toast(error.message); toast("Membership granted."); route(); };
 }

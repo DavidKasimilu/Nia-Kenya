@@ -6,14 +6,14 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const icons = () => window.__icons && window.__icons();
 const TYPES = ["All", "Job", "Internship", "Attachment", "Saved"], PAGE = 12, NONE = "00000000-0000-0000-0000-000000000000";
 const REASONS = { scam: "Looks like a scam", asks_for_payment: "Asks for payment", misleading: "Misleading or inaccurate", expired: "Already closed or expired", other: "Something else" };
-const state = { user: null, profile: null, staff: false, items: [], total: 0, applied: new Set(), saved: new Set(), fields: {}, type: "All", current: null, seq: 0 };
+const state = { user: null, profile: null, staff: false, items: [], total: 0, applied: new Set(), saved: new Set(), fields: {}, type: "All", current: null, seq: 0, subActive: false, required: false, plan: null };
 const clean = (v) => v.replace(/[%,()*\\]/g, " ").trim();
 
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); }
 function ago(iso) { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "1 day ago" : d < 30 ? d + " days ago" : new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short" }); }
 function isOpen(o) { return o.status !== "closed" && (!o.deadline || new Date(o.deadline) > new Date()); }
 function avatarHtml(p, email) { const n = (p?.full_name || email || "?").trim()[0].toUpperCase(); return p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n); }
-const closeAll = () => ["applyModal", "reportModal"].forEach((m) => $(m).classList.add("hidden"));
+const closeAll = () => ["applyModal", "reportModal", "payModal"].forEach((m) => $(m).classList.add("hidden"));
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!sb) return;
@@ -41,18 +41,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     const b = e.target.closest("[data-apply],[data-save],[data-report]"); if (!b) return;
     if (b.dataset.apply) openApply(b.dataset.apply); else if (b.dataset.save) toggleSave(b.dataset.save); else openReport(b.dataset.report);
   };
-  ["applyClose", "applyCancel"].forEach((id) => ($(id).onclick = closeAll)); ["reportClose", "reportCancel"].forEach((id) => ($(id).onclick = closeAll));
-  ["applyModal", "reportModal"].forEach((m) => ($(m).onclick = (e) => { if (e.target === $(m)) closeAll(); }));
+  ["applyClose", "applyCancel"].forEach((id) => ($(id).onclick = closeAll)); ["reportClose", "reportCancel", "payClose"].forEach((id) => ($(id).onclick = closeAll)); $("payGo").onclick = startPayment;
+  ["applyModal", "reportModal", "payModal"].forEach((m) => ($(m).onclick = (e) => { if (e.target === $(m)) closeAll(); }));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
   $("applyForm").onsubmit = submitApply; $("reportForm").onsubmit = submitReport;
   $("reportReason").innerHTML = `<option value="">Select a reason…</option>` + Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 
-  const [a, s, f, n] = await Promise.all([
+  const [a, s, f, n, su, pl, rq] = await Promise.all([
     sb.from("applications").select("opportunity_id").eq("user_id", session.user.id),
     sb.from("saved_listings").select("opportunity_id").eq("user_id", session.user.id),
     sb.from("application_fields").select("*"),
     sb.from("announcements").select("message").eq("active", true).order("created_at", { ascending: false }).limit(1),
+    sb.from("subscriptions").select("paid_until").eq("user_id", session.user.id).maybeSingle(),
+    sb.from("plans").select("*").eq("code", "monthly").maybeSingle(),
+    sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle(),
   ]);
+  state.subActive = !!(su.data && new Date(su.data.paid_until) > new Date()); state.plan = pl.data; state.required = rq.data?.value === true;
   state.applied = new Set((a.data || []).map((x) => x.opportunity_id)); state.saved = new Set((s.data || []).map((x) => x.opportunity_id));
   (f.data || []).forEach((x) => (state.fields[x.key] = x));
   if (n.data?.[0]) { $("announceText").textContent = n.data[0].message; $("announce").classList.remove("hidden"); }
@@ -119,6 +123,7 @@ function fieldHtml(k) {
 function openApply(id) {
   if (state.staff) return toast("Administrators can't apply for opportunities.");
   const o = state.items.find((x) => x.id === id); if (!o) return;
+  if (state.required && !state.subActive) return openPaywall(o);
   state.current = o; $("applyTitle").textContent = o.title; $("applyCompany").textContent = `${o.company} · ${o.location}`;
   $("applyFields").innerHTML = (o.required_fields || []).map(fieldHtml).join("");
   const noCv = !state.profile?.resume_url; $("applyWarn").classList.toggle("hidden", !noCv); $("applySubmit").disabled = noCv;
@@ -130,6 +135,26 @@ async function submitApply(e) {
   const btn = $("applySubmit"); btn.disabled = true; btn.textContent = "Submitting…";
   const { error } = await sb.from("applications").insert([{ opportunity_id: o.id, user_id: state.user.id, user_email: state.user.email, resume_url: state.profile.resume_url, answers }]);
   btn.disabled = false; btn.textContent = "Submit application";
+  if (error && /row-level security|42501/i.test((error.code || "") + error.message)) { closeAll(); state.subActive = false; return openPaywall(o); }
   if (error) { const m = $("applyMsg"); m.className = "message error"; m.textContent = error.code === "23505" ? "You have already applied to this opportunity." : error.message.replace(/^.*Missing required detail: /, "Please fill in: "); return; }
   state.applied.add(o.id); closeAll(); render(); toast("Application submitted. Good luck!");
+}
+
+/* ---------- Membership paywall ---------- */
+function openPaywall(o) {
+  state.current = o; $("payFor").textContent = `To apply for ${o.title}, you need an active membership.`;
+  $("payPrice").textContent = "KES " + (state.plan?.amount_kes ?? 250); $("payMsg").classList.add("hidden");
+  $("payGo").disabled = false; $("payGo").textContent = "Subscribe with M-Pesa or card"; $("payModal").classList.remove("hidden"); icons();
+}
+function payErr(t) { const m = $("payMsg"); m.className = "message error"; m.textContent = t; $("payGo").disabled = false; $("payGo").textContent = "Subscribe with M-Pesa or card"; }
+async function startPayment() {
+  if (!state.plan) return payErr("Membership is not available right now.");
+  $("payGo").disabled = true; $("payMsg").classList.add("hidden");
+  await NiaPay.subscribe({
+    sb, user: state.user, plan: state.plan,
+    onBusy: (v) => ($("payGo").textContent = v ? "Confirming your payment…" : "Subscribe with M-Pesa or card"),
+    onClose: () => { if (!state.subActive) $("payGo").disabled = false; },
+    onError: payErr,
+    onDone: () => { state.subActive = true; $("payModal").classList.add("hidden"); toast("You are subscribed. Welcome!"); openApply(state.current.id); },
+  });
 }

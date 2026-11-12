@@ -72,6 +72,24 @@
     </div>
   </div>
 
+  <div id="payModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal sheet">
+      <button class="close-btn" id="payClose" aria-label="Close"><i data-lucide="x" class="icon"></i></button>
+      <h2>Unlock applications</h2><p class="sub" id="payFor"></p>
+      <div class="price"><b id="payPrice">KES 250</b><span> / month</span></div>
+      <ul class="perks">
+        <li><i data-lucide="check" class="icon"></i> Apply to any listing, as many as you like</li>
+        <li><i data-lucide="check" class="icon"></i> Email updates when your application status changes</li>
+        <li><i data-lucide="check" class="icon"></i> No automatic charges. We remind you before it ends</li>
+      </ul>
+      <div id="payMsg" class="message hidden"></div>
+      <button class="btn btn-green btn-lg" id="payGo" style="width:100%">Subscribe with M-Pesa or card</button>
+      <p class="fine">Secure payment by Paystack. Browsing and your profile stay free.</p>
+    </div>
+  </div>
+
+  <script src="paystack-config.js"></script>
+  <script src="nia-pay.js"></script>
   <script src="dashboard.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
