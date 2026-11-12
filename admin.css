@@ -22,7 +22,8 @@ aside .tag{font-size:.65rem;letter-spacing:.08em;background:var(--green);padding
 .r{background:#fff;border:1px solid var(--line);border-radius:14px;padding:.9rem 1rem;display:flex;gap:.9rem;align-items:center;flex-wrap:wrap}
 .r .grow{flex:1;min-width:200px}.r h3{font-size:.95rem}.r p{font-size:.82rem;color:var(--mute);overflow-wrap:anywhere}
 .acts{display:flex;gap:.4rem;flex-wrap:wrap}
-.ib{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer}.ib:hover{border-color:#000}.ib.d:hover{border-color:var(--red);color:var(--red)}
+.ib{min-width:36px;height:36px;padding:0 .7rem;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.avs .ib{padding:0}.ib:hover{border-color:#000}.ib.d:hover{border-color:var(--red);color:var(--red)}
 .toolbar{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
 .toolbar input,.toolbar select,.sel{padding:.65rem .8rem;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:.9rem}
 .toolbar input{flex:1;min-width:180px}
