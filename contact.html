@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact and support | Nia</title>
+  <meta name="description" content="Get help, report a suspicious listing or make a data request." />
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="base.css" /><link rel="stylesheet" href="legal.css" />
+</head>
+<body>
+  <header class="lg-top"><div class="lg-in">
+    <a href="index.html" class="lg-brand" aria-label="Nia home"><img src="assets/images/logo2-tight.png" alt="Nia" width="38" height="38" /></a>
+    <nav><a href="privacy.html" class="">Privacy</a><a href="terms.html" class="">Terms</a><a href="contact.html" class="cur">Contact</a><a href="index.html" class="btn btn-ghost">Back to Nia</a></nav>
+  </div></header>
+  <div class="lg-wrap">
+    <aside class="toc" id="toc" aria-label="On this page"><b>On this page</b></aside>
+    <main class="doc" id="doc">
+      <h1>Contact and support</h1>
+      <p class="meta">We aim to reply within two working days.</p>
+      <div class="short"><b>In short</b>Email <mark class="ph">[contact email]</mark> for anything below. Put the topic in the subject line so we can route it quickly.</div>
+
+      <h2>1. Report a suspicious listing</h2>
+      <p>Nia and the opportunities we publish never ask you to pay to apply. If a listing or message asks you for money, or looks fake, email us with the listing title and any screenshots. Use the subject <b>Report listing</b>. Please do not pay anything in the meantime.</p>
+
+      <h2>2. Your account and data</h2>
+      <p>You can edit your details, download your data or delete your account under Profile, then Settings. If you cannot sign in or need help with a data request, email us with the subject <b>Account help</b>. For security we may ask you to confirm it is you.</p>
+
+      <h2>3. Technical help</h2>
+      <p>If something is not working, tell us what you were doing, what you expected, and which device and browser you use. Use the subject <b>Technical help</b>.</p>
+      <ul><li>Did not get your verification code? Check your spam folder, then use Resend code on the sign-up screen.</li><li>Forgot your password? Use the Forgot password link on the sign-in form.</li></ul>
+
+      <h2>4. Employers and partners</h2>
+      <p>If your organisation would like to list jobs, internships or attachments on Nia, email us with the subject <b>Partnership</b>.</p>
+
+      <h2>5. Where to find us</h2>
+      <p><mark class="ph">[contact email]</mark> &middot; <mark class="ph">[postal address]</mark></p>
+    </main>
+  </div>
+  <footer class="lg-foot"><div>
+    <img src="assets/images/logo2-tight.png" alt="Nia" width="28" height="28" />
+    <span>&copy; <span id="yr">2026</span> Nia Kenya</span>
+    <nav style="display:flex;gap:1rem;margin-left:auto"><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a><a href="contact.html">Contact</a></nav>
+  </div></footer>
+  <script>
+    document.getElementById("yr").textContent = new Date().getFullYear();
+    const toc = document.getElementById("toc"), hs = [...document.querySelectorAll("#doc h2")];
+    hs.forEach((h, i) => { h.id = "s" + (i + 1); const a = document.createElement("a"); a.href = "#s" + (i + 1); a.textContent = h.textContent.replace(/^\d+\.\s*/, ""); toc.appendChild(a); });
+    const links = [...toc.querySelectorAll("a")];
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) links.forEach((l) => l.classList.toggle("on", l.getAttribute("href") === "#" + e.target.id)); }), { rootMargin: "-15% 0px -75% 0px" });
+    hs.forEach((h) => io.observe(h));
+  </script>
+</body>
+</html>

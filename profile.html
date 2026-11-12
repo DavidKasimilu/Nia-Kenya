@@ -77,7 +77,9 @@
         <div class="form-group"><label for="newPw2">Confirm new password</label><input id="newPw2" type="password" minlength="6" required autocomplete="new-password" /></div>
         <button type="submit" class="btn btn-primary" id="pwBtn">Update password</button>
       </form>
+      <div class="pcard"><h2>Your data</h2><p style="color:var(--ink-2);font-size:.92rem;margin-bottom:1rem">Download a copy of your profile and applications as a JSON file.</p><button class="btn btn-ghost" id="exportBtn"><i data-lucide="download" class="icon"></i> Download my data</button></div>
       <div class="pcard"><h2>Session</h2><button class="btn btn-ghost" id="logoutBtn2"><i data-lucide="log-out" class="icon"></i> Sign out</button></div>
+    <div class="pcard" style="border-color:#fecaca"><h2 style="color:var(--red)">Delete account</h2><p style="color:var(--ink-2);font-size:.92rem;margin-bottom:1rem">Permanently delete your account, profile, CV and applications. This cannot be undone.</p><button class="btn btn-danger" id="deleteAcctBtn"><i data-lucide="trash-2" class="icon"></i> Delete my account</button></div>
     </section>
   </main>
 
@@ -94,6 +96,14 @@
     <h2>Remove your CV?</h2><p class="sub">You will need to upload a CV again before applying.</p>
     <button class="btn btn-danger" id="confirmYes" style="width:100%">Remove CV</button>
     <button class="btn btn-ghost" id="confirmNo">Cancel</button>
+  </div></div>
+
+  <div id="deleteModal" class="modal-overlay hidden" role="dialog" aria-modal="true"><div class="modal sheet">
+    <h2>Delete your account?</h2><p class="sub">This permanently removes your profile, CV and applications. Type <b>DELETE</b> to confirm.</p>
+    <div id="delMsg" class="message hidden"></div>
+    <div class="form-group"><input id="delConfirm" autocomplete="off" placeholder="DELETE" /></div>
+    <button class="btn btn-danger" id="delGo" style="width:100%" disabled>Delete permanently</button>
+    <button class="btn btn-ghost" id="delNo">Cancel</button>
   </div></div>
 
   <script src="profile.js"></script>

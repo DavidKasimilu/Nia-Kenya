@@ -130,3 +130,26 @@ async function changePw(e) {
   if (error) return say(error.message, true);
   $("pwForm").reset(); say("Password updated.");
 }
+
+/* ---------- Data download and account deletion ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  $("exportBtn").onclick = async () => {
+    const { data, error } = await sb.rpc("export_my_data"); if (error) return say(error.message, true);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    Object.assign(document.createElement("a"), { href: url, download: "my-nia-data.json" }).click(); URL.revokeObjectURL(url); say("Your data was downloaded.");
+  };
+  $("deleteAcctBtn").onclick = () => {
+    if (["admin", "moderator"].includes(profile.role)) return say("Staff accounts cannot be deleted here. Ask another admin to remove the account.", true);
+    $("delConfirm").value = ""; $("delGo").disabled = true; $("delMsg").classList.add("hidden"); $("deleteModal").classList.remove("hidden");
+  };
+  $("delNo").onclick = () => $("deleteModal").classList.add("hidden");
+  $("delConfirm").oninput = () => ($("delGo").disabled = $("delConfirm").value.trim() !== "DELETE");
+  $("delGo").onclick = async () => {
+    const b = $("delGo"); b.disabled = true; b.textContent = "Deleting…";
+    for (const bucket of ["resumes", "avatars"]) { const { data } = await sb.storage.from(bucket).list(user.id); if (data?.length) await sb.storage.from(bucket).remove(data.map((f) => `${user.id}/${f.name}`)); }
+    const { error } = await sb.rpc("delete_my_account");
+    if (error) { const m = $("delMsg"); m.className = "message error"; m.textContent = error.message; b.disabled = false; b.textContent = "Delete permanently"; return; }
+    try { await sb.auth.signOut(); } catch (e) {}
+    location.href = "index.html";
+  };
+});

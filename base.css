@@ -59,3 +59,4 @@ button,input{font:inherit;color:inherit}
 .brand,.auth-brand,.wordmark{display:inline-flex;align-items:center;gap:.6rem}
 .brand img,.wordmark img,.auth-brand img,.modal-logo img{display:block;height:auto}
 .modal-logo{margin-bottom:.5rem}
+.cf-ts{display:flex;justify-content:center}.cf-ts:not(:empty){margin-bottom:1rem}

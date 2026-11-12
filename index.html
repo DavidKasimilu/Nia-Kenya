@@ -120,7 +120,7 @@
   <footer>
     <div class="container foot">
       <a href="#top" class="brand" aria-label="Nia home"><img src="assets/images/logo1-tight.png" alt="Nia" width="34" height="34" /></a>
-      <span>&copy; <span id="yr">2026</span> Nia Kenya. All rights reserved. &nbsp;&middot;&nbsp; <a href="privacy.html" style="text-decoration:underline">Privacy</a> &nbsp;&middot;&nbsp; <a href="terms.html" style="text-decoration:underline">Terms</a></span>
+      <span>&copy; <span id="yr">2026</span> Nia Kenya. All rights reserved. &nbsp;&middot;&nbsp; <a href="privacy.html" style="text-decoration:underline">Privacy</a> &nbsp;&middot;&nbsp; <a href="terms.html" style="text-decoration:underline">Terms</a> &nbsp;&middot;&nbsp; <a href="contact.html" style="text-decoration:underline">Contact</a></span>
     </div>
   </footer>
 
@@ -136,6 +136,7 @@
       </div>
 
       <div id="authMessage" class="message hidden"></div>
+      <div id="cfTurnstile" class="cf-ts"></div>
 
       <form id="signInForm" class="auth-form">
         <div class="form-group"><label for="signinEmail">Email</label><input type="email" id="signinEmail" required placeholder="you@example.com" autocomplete="email" /></div>
@@ -165,6 +166,7 @@
     </div>
   </div>
 
+  <script src="captcha.js"></script>
   <script src="app.js"></script>
   <!-- Lucide icons. For SRI, run: curl -s <this URL> | openssl dgst -sha384 -binary | openssl base64 -A
        then add integrity="sha384-<result>" crossorigin="anonymous" to the tag. -->
@@ -179,6 +181,7 @@
         if (b.dataset.openAuth === "signup") $("tabSignUp").click();
       })
     );
+    $("openModalBtn").addEventListener("click", () => setTimeout(() => window.NiaCaptcha && NiaCaptcha.ensure(), 0));
     $("menuBtn").addEventListener("click", () => {
       const open = $("navLinks").classList.toggle("open");
       $("menuBtn").setAttribute("aria-expanded", open);
