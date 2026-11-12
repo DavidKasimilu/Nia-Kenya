@@ -1,7 +1,7 @@
 // Cloudflare Turnstile helper. Paste your SITE key below (the public one, not the secret).
 // Leave empty to run without CAPTCHA.
 (() => {
-  const SITE_KEY = "";
+  const SITE_KEY = "0x4AAAAAAF9-5-fTzVv85E6U";
   let token = null, wid = null, loading = false;
   function render() {
     const el = document.getElementById("cfTurnstile");
