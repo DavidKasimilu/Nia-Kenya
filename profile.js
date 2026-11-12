@@ -20,6 +20,7 @@ function showTab(t) {
   ["profile", "applications", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
   if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
 }
+const resumePath = (v) => (v && /^https?:/.test(v) ? pathOf(v, "resumes") : v || null);
 const pathOf = (url, bucket) => (url && url.includes(`/object/public/${bucket}/`) ? decodeURIComponent(url.split(`/object/public/${bucket}/`)[1].split("?")[0]) : null);
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -29,7 +30,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   user = session.user;
   const { data } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (data?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
-  profile = data || {}; if (profile.role === "admin") $("adminLink").classList.remove("hidden");
+  profile = data || {}; if (["admin", "moderator"].includes(profile.role)) $("adminLink").classList.remove("hidden");
   $("displayEmail").textContent = $("menuEmail").textContent = $("profileEmail").value = user.email || "";
   $("profileFullName").value = profile.full_name || user.user_metadata?.full_name || "";
   [["Phone", "phone"], ["Whatsapp", "whatsapp"], ["County", "county"], ["Institution", "institution"], ["Course", "course"], ["Bio", "bio"]].forEach(([i, k]) => ($("profile" + i).value = profile[k] || ""));
@@ -64,7 +65,8 @@ async function saveProfile(e) {
 
 function renderCv() {
   const u = profile.resume_url;
-  $("resumeStatus").innerHTML = u ? `<a href="${esc(u)}" target="_blank" rel="noopener">View current CV</a>` : `<span style="color:var(--mute)">No CV uploaded yet</span>`;
+  $("resumeStatus").innerHTML = u ? `<a href="#" id="viewCv">View current CV</a>` : `<span style="color:var(--mute)">No CV uploaded yet</span>`;
+  if (u) $("viewCv").onclick = viewCv;
   $("deleteCvBtn").classList.toggle("hidden", !u); $("uploadLbl").textContent = u ? "Replace" : "Upload";
 }
 async function uploadCv() {
@@ -74,14 +76,18 @@ async function uploadCv() {
   const path = `${user.id}/${Date.now()}_${f.name.replace(/[^\w.\-]/g, "_")}`;
   const up = await sb.storage.from("resumes").upload(path, f, { upsert: false });
   if (up.error) { renderCv(); return say("Upload failed: " + up.error.message, true); }
-  const url = sb.storage.from("resumes").getPublicUrl(path).data.publicUrl, old = pathOf(profile.resume_url, "resumes");
+  const url = path, old = resumePath(profile.resume_url);
   const { error } = await sb.from("profiles").update({ resume_url: url, updated_at: new Date().toISOString() }).eq("id", user.id);
   if (error) return say("Could not save CV: " + error.message, true);
   if (old) sb.storage.from("resumes").remove([old]);
   profile.resume_url = url; renderCv(); say("CV uploaded.");
 }
+async function viewCv(e) {
+  e.preventDefault(); const w = window.open("", "_blank"), { data, error } = await sb.storage.from("resumes").createSignedUrl(resumePath(profile.resume_url), 300);
+  if (error) { w && w.close(); return say("Could not open CV: " + error.message, true); } w.location = data.signedUrl;
+}
 async function removeCv() {
-  $("confirmModal").classList.add("hidden"); const old = pathOf(profile.resume_url, "resumes");
+  $("confirmModal").classList.add("hidden"); const old = resumePath(profile.resume_url);
   const { error } = await sb.from("profiles").update({ resume_url: null, updated_at: new Date().toISOString() }).eq("id", user.id);
   if (error) return say("Could not remove CV: " + error.message, true);
   if (old) sb.storage.from("resumes").remove([old]);

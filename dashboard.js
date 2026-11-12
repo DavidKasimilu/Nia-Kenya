@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   state.user = session.user;
   const { data: p } = await sb.from("profiles").select("status, role, resume_url, full_name, phone, whatsapp, county, avatar_url").eq("id", session.user.id).maybeSingle();
   if (p?.status === "banned") { await sb.auth.signOut(); alert("Your account has been suspended. Please contact administration."); return (location.href = "index.html"); }
-  state.profile = p || {}; state.isAdmin = p?.role === "admin";
+  state.profile = p || {}; state.isAdmin = ["admin", "moderator"].includes(p?.role);
 
   $("avatarBtn").innerHTML = avatarHtml(p, session.user.email);
   $("menuName").textContent = p?.full_name || "Student"; $("menuEmail").textContent = session.user.email;

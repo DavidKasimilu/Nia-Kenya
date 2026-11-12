@@ -7,7 +7,8 @@ const icons = () => window.__icons && window.__icons();
 const dt = (d) => new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
 const badge = (s) => `<span class="badge b-${esc(s)}">${esc(s)}</span>`;
 const ST = ["new", "reviewing", "shortlisted", "contacted", "rejected"];
-let me, fields = [];
+let me, isAdmin = false, fields = [];
+const resumePath = (v) => (v && /^https?:/.test(v) ? (v.includes("/object/public/resumes/") ? decodeURIComponent(v.split("/object/public/resumes/")[1].split("?")[0]) : null) : v || null);
 
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3000); }
 function openModal(html) { $("modalBody").innerHTML = html + ""; $("modal").classList.remove("hidden"); icons(); }
@@ -28,7 +29,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!session) return (location.href = "index.html");
   me = session.user;
   const { data: p } = await sb.from("profiles").select("role,status").eq("id", me.id).maybeSingle();
-  if (p?.role !== "admin" || p.status === "banned") return (location.href = "dashboard.html");
+  if (!["admin", "moderator"].includes(p?.role) || p.status === "banned") return (location.href = "dashboard.html");
+  isAdmin = p.role === "admin"; if (!isAdmin) document.querySelectorAll("[data-admin]").forEach((e) => e.remove());
   $("logoutBtn").onclick = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("modal").onclick = (e) => { if (e.target === $("modal")) closeModal(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -36,9 +38,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
-  const v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
+  let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
+  if (!isAdmin && ["fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
   document.querySelectorAll("#nav a[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === v));
   $("view").onclick = null; $("view").innerHTML = empty("Loading…");
   try { await views[v](); } catch (e) { $("view").innerHTML = empty("Something went wrong: " + e.message); }
@@ -61,7 +64,7 @@ async function opportunities() {
   const { data, error } = await sb.from("opportunities").select("*").order("created_at", { ascending: false }); if (error) throw error;
   $("view").innerHTML = head("Listings", "Create and manage opportunities.", `<button class="btn btn-green" id="newOpp"><i data-lucide="plus" class="icon"></i> New listing</button>`) +
     `<div class="rows">${(data || []).map((o) => `<div class="r"><div class="grow"><h3>${esc(o.title)}</h3><p>${esc(o.company)} · ${esc(o.location)} · ${esc(o.type)}${o.deadline ? " · closes " + dt(o.deadline) : ""}</p></div>${badge(o.status)}
-      <div class="acts"><button class="ib" data-e="${esc(o.id)}" title="Edit"><i data-lucide="pencil" class="icon"></i></button><button class="ib" data-t="${esc(o.id)}" title="${o.status === "published" ? "Close" : "Publish"}"><i data-lucide="${o.status === "published" ? "lock" : "send"}" class="icon"></i></button><button class="ib d" data-d="${esc(o.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></div></div>`).join("") || empty("No listings yet.")}</div>`;
+      <div class="acts"><button class="ib" data-e="${esc(o.id)}" title="Edit"><i data-lucide="pencil" class="icon"></i></button><button class="ib" data-t="${esc(o.id)}" title="${o.status === "published" ? "Close" : "Publish"}"><i data-lucide="${o.status === "published" ? "lock" : "send"}" class="icon"></i></button>${isAdmin ? `<button class="ib d" data-d="${esc(o.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button>` : ""}</div></div>`).join("") || empty("No listings yet.")}</div>`;
   $("newOpp").onclick = () => oppForm();
   $("view").onclick = async (e) => {
     const b = e.target.closest("button[data-e],button[data-t],button[data-d]"); if (!b) return;
@@ -122,10 +125,11 @@ function appDetail(a, p) {
   const rows = [["Email", a.user_email], ["Phone", p.phone], ["WhatsApp", p.whatsapp], ["County", p.county], ["Institution", p.institution], ["Course", p.course]].filter((r) => r[1]);
   openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${esc(p.full_name || a.user_email)}</h2><p class="sub">${esc(a.opportunities?.title || "")} · applied ${dt(a.created_at)}</p>
   <dl class="dl">${rows.map((r) => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("")}${Object.entries(a.answers || {}).map(([k, v]) => `<dt>${esc(label(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
-  ${cv ? `<a class="btn btn-ghost btn-sm" href="${esc(cv)}" target="_blank" rel="noopener"><i data-lucide="file-text" class="icon"></i> Open CV</a>` : ""}
+  ${cv ? `<button class="btn btn-ghost btn-sm" id="cvOpen"><i data-lucide="file-text" class="icon"></i> Open CV</button>` : ""}
   <div class="form-group" style="margin-top:1rem"><label>Status</label><select id="aSt">${ST.map((s) => `<option ${a.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
   <div class="form-group"><label>Private notes</label><textarea id="aNote" rows="3">${esc(a.admin_notes)}</textarea></div><button class="btn btn-submit" id="aSave">Save</button>`);
   $("x").onclick = closeModal;
+  if (cv) $("cvOpen").onclick = async () => { const w = window.open("", "_blank"), { data, error } = await sb.storage.from("resumes").createSignedUrl(resumePath(cv), 300); if (error) { w && w.close(); return toast("Could not open CV."); } w.location = data.signedUrl; };
   $("aSave").onclick = async () => { const { error } = await sb.from("applications").update({ status: $("aSt").value, admin_notes: $("aNote").value.trim() || null }).eq("id", a.id); if (error) return toast(error.message); await log("application.update", "application", a.id, { status: $("aSt").value }); closeModal(); toast("Saved."); route(); };
 }
 
@@ -134,13 +138,14 @@ async function users() {
   const { data, error } = await sb.from("profiles").select("id,email,full_name,role,status,created_at,institution").order("created_at", { ascending: false }); if (error) throw error;
   const draw = () => {
     const q = $("uQ").value.toLowerCase(); const l = data.filter((u) => !q || ((u.full_name || "") + u.email).toLowerCase().includes(q));
-    $("uRows").innerHTML = l.map((u) => `<div class="r"><div class="grow"><h3>${esc(u.full_name || u.email)}</h3><p>${esc(u.email)} · joined ${dt(u.created_at)}${u.institution ? " · " + esc(u.institution) : ""}</p></div>${u.role === "admin" ? badge("admin").replace("b-admin", "b-published") : ""}${badge(u.status || "active")}
-      ${u.role !== "admin" && u.id !== me.id ? `<div class="acts"><button class="ib" data-b="${esc(u.id)}" title="${u.status === "banned" ? "Unban" : "Ban"}"><i data-lucide="${u.status === "banned" ? "user-check" : "ban"}" class="icon"></i></button><button class="ib d" data-x="${esc(u.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></div>` : ""}</div>`).join("") || empty("No users found."); icons();
+    $("uRows").innerHTML = l.map((u) => `<div class="r"><div class="grow"><h3>${esc(u.full_name || u.email)}</h3><p>${esc(u.email)} · joined ${dt(u.created_at)}${u.institution ? " · " + esc(u.institution) : ""}</p></div>${u.role !== "student" ? badge(u.role).replace("b-" + u.role, "b-published") : ""}${badge(u.status || "active")}
+      ${isAdmin && u.role !== "admin" && u.id !== me.id ? `<div class="acts"><button class="ib" data-m="${esc(u.id)}" title="${u.role === "moderator" ? "Remove moderator" : "Make moderator"}"><i data-lucide="${u.role === "moderator" ? "shield-off" : "shield"}" class="icon"></i></button><button class="ib" data-b="${esc(u.id)}" title="${u.status === "banned" ? "Unban" : "Ban"}"><i data-lucide="${u.status === "banned" ? "user-check" : "ban"}" class="icon"></i></button><button class="ib d" data-x="${esc(u.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></div>` : ""}</div>`).join("") || empty("No users found."); icons();
   };
   $("view").innerHTML = head("Users", data.length + " registered accounts.") + `<div class="toolbar"><input id="uQ" placeholder="Search name or email"></div><div class="rows" id="uRows"></div>`;
   $("uQ").oninput = draw; draw();
   $("uRows").onclick = async (e) => {
-    const b = e.target.closest("button"); if (!b) return; const u = data.find((x) => x.id === (b.dataset.b || b.dataset.x));
+    const b = e.target.closest("button"); if (!b) return; const u = data.find((x) => x.id === (b.dataset.b || b.dataset.x || b.dataset.m));
+    if (b.dataset.m) { const nr = u.role === "moderator" ? "student" : "moderator"; const { error } = await sb.from("profiles").update({ role: nr }).eq("id", u.id); if (error) return toast(error.message); await log("user.role", "user", u.id, { email: u.email, role: nr }); toast("Role set to " + nr + "."); return route(); }
     if (b.dataset.b) { const ns = u.status === "banned" ? "active" : "banned"; if (ns === "banned" && !(await confirmBox("Ban this user?", u.email + " will lose access immediately.", "Ban"))) return; const { error } = await sb.from("profiles").update({ status: ns }).eq("id", u.id); if (error) return toast(error.message); await log("user." + (ns === "banned" ? "ban" : "unban"), "user", u.id, { email: u.email }); toast("User " + ns + "."); return route(); }
     if (await confirmBox("Delete this user?", u.email + " and all their applications will be permanently removed.", "Delete")) { const { error } = await sb.rpc("delete_user_by_admin", { target_user_id: u.id }); if (error) return toast(error.message); toast("User deleted."); route(); }
   };
@@ -179,4 +184,38 @@ async function announcements() {
 async function audit() {
   const { data, error } = await sb.from("audit_log").select("*").order("created_at", { ascending: false }).limit(100); if (error) throw error;
   $("view").innerHTML = head("Audit log", "The last 100 admin actions.") + `<div class="rows">${(data || []).map((l) => `<div class="r"><div class="grow"><h3>${esc(l.action)}</h3><p>${esc(l.actor_email || "system")} · ${new Date(l.created_at).toLocaleString("en-KE")}${l.details && Object.keys(l.details).length ? " · " + esc(Object.values(l.details).join(", ")) : ""}</p></div></div>`).join("") || empty("No activity logged yet.")}</div>`;
+}
+
+/* ---------- Applicant-detail catalog ---------- */
+const slug = (s) => { const k = s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); return /^[a-z]/.test(k) ? k : "f_" + k; };
+async function fieldsView() {
+  const { data, error } = await sb.from("application_fields").select("*").order("sort_order"); if (error) throw error; fields = data;
+  $("view").innerHTML = head("Applicant details", "The questions you can ask applicants when posting a listing.", `<button class="btn btn-green" id="nf"><i data-lucide="plus" class="icon"></i> New detail</button>`) +
+    `<div class="rows">${data.map((f) => `<div class="r"><div class="grow"><h3>${esc(f.label)}</h3><p>${esc(f.key)} · ${esc(f.input_type)}${f.help_text ? " · " + esc(f.help_text) : ""}</p></div>${badge(f.active ? "active" : "off")}<div class="acts"><button class="ib" data-e="${esc(f.key)}" title="Edit"><i data-lucide="pencil" class="icon"></i></button><button class="ib" data-t="${esc(f.key)}" title="${f.active ? "Disable" : "Enable"}"><i data-lucide="${f.active ? "eye-off" : "eye"}" class="icon"></i></button></div></div>`).join("")}</div>`;
+  $("nf").onclick = () => fieldForm();
+  $("view").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return; const f = data.find((x) => x.key === (b.dataset.e || b.dataset.t)); if (!f) return;
+    if (b.dataset.e) return fieldForm(f);
+    if (f.active) { const { count } = await sb.from("opportunities").select("id", { count: "exact", head: true }).contains("required_fields", [f.key]); if (count) return toast(`Used by ${count} listing(s). Remove it from them first.`); }
+    const { error } = await sb.from("application_fields").update({ active: !f.active }).eq("key", f.key); if (error) return toast(error.message);
+    await log("field." + (f.active ? "disable" : "enable"), "field", f.key); route();
+  };
+}
+function fieldForm(f = {}) {
+  const types = ["text", "tel", "email", "url", "textarea", "date", "number", "select", "boolean"];
+  openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${f.key ? "Edit detail" : "New detail"}</h2><p class="sub">Applicants fill this in when a listing requires it.</p><div id="fm" class="message hidden"></div>
+  <form id="ff"><div class="form-group"><label>Label</label><input name="label" required value="${esc(f.label)}" placeholder="e.g. Do you have a driving licence?"></div>
+  <div class="two"><div class="form-group"><label>Answer type</label><select name="input_type">${types.map((t) => `<option ${f.input_type === t ? "selected" : ""}>${t}</option>`).join("")}</select></div><div class="form-group"><label>Order</label><input type="number" name="sort_order" value="${f.sort_order ?? 200}"></div></div>
+  <div class="form-group" id="optBox"><label>Choices (comma separated, for "select")</label><input name="options" value="${esc((f.options || []).join(", "))}" placeholder="Option A, Option B"></div>
+  <div class="form-group"><label>Help text (optional)</label><input name="help_text" value="${esc(f.help_text)}"></div><button class="btn btn-submit">Save</button></form>`);
+  $("x").onclick = closeModal;
+  const sync = () => $("optBox").classList.toggle("hidden", $("ff").input_type.value !== "select"); $("ff").input_type.onchange = sync; sync();
+  $("ff").onsubmit = async (e) => {
+    e.preventDefault(); const d = new FormData(e.target), t = d.get("input_type"), opts = t === "select" ? d.get("options").split(",").map((x) => x.trim()).filter(Boolean) : null;
+    if (t === "select" && !opts.length) { const m = $("fm"); m.className = "message error"; m.textContent = "Add at least one choice."; return; }
+    const row = { label: d.get("label").trim(), input_type: t, options: opts, help_text: d.get("help_text").trim() || null, sort_order: Number(d.get("sort_order")) || 0 };
+    const { error } = f.key ? await sb.from("application_fields").update(row).eq("key", f.key) : await sb.from("application_fields").insert([{ key: slug(row.label), ...row }]);
+    if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.code === "23505" ? "A detail with that name already exists." : error.message; return; }
+    await log(f.key ? "field.update" : "field.create", "field", f.key || slug(row.label), { label: row.label }); closeModal(); toast("Saved."); route();
+  };
 }
