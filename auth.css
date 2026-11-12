@@ -1,0 +1,10 @@
+/* Shared layout for reset-password.html and update-password.html */
+body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem 1rem;background:var(--soft)}
+.auth-brand{font-size:1.6rem;font-weight:800;letter-spacing:-.04em;margin-bottom:1.25rem}.auth-brand i{color:var(--green);font-style:normal}
+.auth-card{width:100%;max-width:420px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:2rem 1.5rem;box-shadow:0 12px 32px rgba(0,0,0,.06)}
+.auth-ic{width:48px;height:48px;border-radius:12px;background:var(--green-50);color:var(--green-ink);display:grid;place-items:center;margin:0 auto 1rem}
+.auth-card h1{font-size:1.4rem;letter-spacing:-.02em;text-align:center}
+.auth-card .sub{color:var(--mute);font-size:.9rem;text-align:center;margin:.35rem 0 1.5rem}
+.auth-back{display:flex;align-items:center;justify-content:center;gap:.4rem;margin-top:1.25rem;font-size:.88rem;font-weight:600;color:var(--ink-2)}
+.auth-back:hover{color:var(--ink)}
+.auth-foot{margin-top:1.25rem;font-size:.8rem;color:var(--mute)}

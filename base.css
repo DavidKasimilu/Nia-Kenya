@@ -32,7 +32,7 @@ button,input{font:inherit;color:inherit}
 .form-group input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(8,136,43,.18)}
 .message{padding:.7rem .9rem;border-radius:10px;font-size:.88rem;margin-bottom:1rem}
 .message.error{background:var(--red-50);color:var(--red)}
-.message.info{background:var(--green-50);color:var(--green-ink)}
+.message.success,.message.info{background:var(--green-50);color:var(--green-ink)}
 
 /* Modal */
 .modal-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.55);backdrop-filter:blur(4px)}
