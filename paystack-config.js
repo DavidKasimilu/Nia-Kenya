@@ -6,7 +6,7 @@
 window.NIA_PAY_CONFIG = {
   mode: "test", // change to "live" when you are ready to take real payments
   keys: {
-    test: "pk_test_REPLACE_ME",
+    test: "pk_test_f9bc53c6f5640bb20ca81bc3a9f827c82e232459",
     live: "pk_live_REPLACE_ME",
   },
   currency: "KES",
