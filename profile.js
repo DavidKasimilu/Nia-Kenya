@@ -4,114 +4,123 @@ const sb = window.supabase ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY,
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icons = () => window.__icons && window.__icons();
-const toast = (t) => { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); };
-const ST = { new: ["Submitted", ""], reviewing: ["In review", ""], shortlisted: ["Shortlisted", "good"], contacted: ["Contacted", "good"], rejected: ["Not selected", "bad"] };
+const STATUS = { new: "Submitted", reviewing: "In review", shortlisted: "Shortlisted", contacted: "Contacted", rejected: "Not selected" };
 let user, profile = {};
 
-function paintAvatar() {
-  const n = (profile.full_name || user.email || "?").trim()[0].toUpperCase();
-  const html = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n);
-  $("avLg").innerHTML = html; $("avatarBtn").innerHTML = html; $("menuName").textContent = profile.full_name || "Student";
-}
-function paintCv() {
-  const has = !!profile.resume_url;
-  $("cvName").textContent = has ? "CV uploaded" : "No CV uploaded"; $("cvHint").textContent = has ? "Used for all your applications" : "Add one to start applying";
-  $("cvView").classList.toggle("hidden", !has); $("cvRemoveBtn").classList.toggle("hidden", !has); $("cvUploadBtn").textContent = has ? "Replace" : "Upload";
-  if (has) $("cvView").href = profile.resume_url;
-}
-async function saveProfileFields(patch) {
-  const { error } = await sb.from("profiles").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", user.id);
-  if (error) { toast("Could not save: " + error.message); return false; }
-  Object.assign(profile, patch); return true;
+function say(text, err) { const m = $("statusMessage"); m.textContent = text; m.className = "message " + (err ? "error" : "info"); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function initial() { return (profile.full_name || user.email || "?").trim()[0].toUpperCase(); }
+function paintAvatars() {
+  const img = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" onerror="this.remove()">` : "";
+  $("avatarBtn").innerHTML = img || esc(initial());
+  $("bigAvatar").innerHTML = (img || esc(initial())) + `<span><i data-lucide="camera" class="icon"></i></span>`;
+  $("displayFullName").textContent = profile.full_name || "Graduate"; $("menuName").textContent = profile.full_name || "Student"; icons();
 }
 function showTab(t) {
-  document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
   ["profile", "applications", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
-  if (t === "applications") loadApps();
+  if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
 }
+const pathOf = (url, bucket) => (url && url.includes(`/object/public/${bucket}/`) ? decodeURIComponent(url.split(`/object/public/${bucket}/`)[1].split("?")[0]) : null);
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!sb) return;
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return (location.href = "index.html");
   user = session.user;
-  const { data: p } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
-  if (p?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
-  profile = p || {};
-  $("pEmail").textContent = user.email; $("menuEmail").textContent = user.email;
-  if (profile.role === "admin") $("adminLink").classList.remove("hidden");
-  const map = { fFull: "full_name", fPhone: "phone", fWa: "whatsapp", fCounty: "county", fInst: "institution", fCourse: "course", fBio: "bio" };
-  Object.entries(map).forEach(([id, k]) => ($(id).value = profile[k] || ""));
-  paintAvatar(); paintCv();
+  const { data } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  if (data?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
+  profile = data || {}; if (profile.role === "admin") $("adminLink").classList.remove("hidden");
+  $("displayEmail").textContent = $("menuEmail").textContent = $("profileEmail").value = user.email || "";
+  $("profileFullName").value = profile.full_name || user.user_metadata?.full_name || "";
+  [["Phone", "phone"], ["Whatsapp", "whatsapp"], ["County", "county"], ["Institution", "institution"], ["Course", "course"], ["Bio", "bio"]].forEach(([i, k]) => ($("profile" + i).value = profile[k] || ""));
+  paintAvatars(); renderCv();
 
-  $("avatarBtn").onclick = (e) => { e.stopPropagation(); const m = $("menu"); m.classList.toggle("hidden"); $("avatarBtn").setAttribute("aria-expanded", !m.classList.contains("hidden")); };
+  $("avatarBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
   document.addEventListener("click", (e) => { if (!$("menu").contains(e.target)) $("menu").classList.add("hidden"); });
   const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out;
-  $("ptabs").onclick = (e) => { const b = e.target.closest(".ptab"); if (b) { showTab(b.dataset.tab); history.replaceState(null, "", "#" + b.dataset.tab); } };
-  document.querySelectorAll("[data-go]").forEach((a) => (a.onclick = () => { showTab(a.dataset.go); $("menu").classList.add("hidden"); }));
-  const h = location.hash.slice(1); if (["applications", "settings"].includes(h)) showTab(h);
-
-  $("profileForm").onsubmit = async (e) => {
-    e.preventDefault(); const patch = {}; Object.entries(map).forEach(([id, k]) => (patch[k] = $(id).value.trim() || null));
-    $("saveBtn").disabled = true; if (await saveProfileFields(patch)) { toast("Profile saved"); paintAvatar(); } $("saveBtn").disabled = false;
-  };
-
-  $("uploadAvatarBtn").onclick = () => $("avatarFile").click();
-  $("avatarFile").onchange = async (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    if (!/^image\/(png|jpe?g|webp)$/.test(f.type) || f.size > 2 * 1024 * 1024) return toast("Use a PNG, JPG or WebP image under 2 MB.");
-    const path = `${user.id}/avatar_${Date.now()}.${f.name.split(".").pop().toLowerCase()}`;
-    const { error } = await sb.storage.from("avatars").upload(path, f, { upsert: true });
-    if (error) return toast("Upload failed: " + error.message);
-    if (await saveProfileFields({ avatar_url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl })) { paintAvatar(); toast("Photo updated"); }
-  };
-  $("pickAvatarBtn").onclick = async () => {
-    const box = $("defaults"); box.classList.toggle("hidden"); if (box.dataset.loaded) return;
-    const { data } = await sb.from("avatars").select("url,label").eq("active", true);
-    box.innerHTML = (data || []).map((a) => `<button type="button" data-u="${esc(a.url)}" aria-label="${esc(a.label || "Avatar")}"><img src="${esc(a.url)}" alt=""></button>`).join("") || `<p class="sub">No default avatars yet.</p>`;
-    box.dataset.loaded = 1;
-    box.onclick = async (e) => { const b = e.target.closest("button"); if (b && await saveProfileFields({ avatar_url: b.dataset.u })) { paintAvatar(); toast("Avatar updated"); } };
-  };
-
-  $("cvUploadBtn").onclick = () => $("cvFile").click();
-  $("cvFile").onchange = async (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    if (!/\.(pdf|docx?)$/i.test(f.name) || f.size > 5 * 1024 * 1024) return toast("Use a PDF or Word file under 5 MB.");
-    const path = `${user.id}/resume_${Date.now()}.${f.name.split(".").pop().toLowerCase()}`;
-    const { error } = await sb.storage.from("resumes").upload(path, f, { upsert: true });
-    if (error) return toast("Upload failed: " + error.message);
-    await removeOldCv();
-    if (await saveProfileFields({ resume_url: sb.storage.from("resumes").getPublicUrl(path).data.publicUrl })) { paintCv(); toast("CV saved"); }
-  };
-  $("cvRemoveBtn").onclick = async () => {
-    if (!confirm("Remove your CV? You will need to upload one again to apply.")) return;
-    await removeOldCv(); if (await saveProfileFields({ resume_url: null })) { paintCv(); toast("CV removed"); }
-  };
-
-  $("pwForm").onsubmit = async (e) => {
-    e.preventDefault(); if ($("pw1").value !== $("pw2").value) return toast("Passwords do not match.");
-    $("pwBtn").disabled = true; const { error } = await sb.auth.updateUser({ password: $("pw1").value });
-    $("pwBtn").disabled = false; if (error) return toast(error.message);
-    $("pwForm").reset(); toast("Password updated");
-  };
-  icons();
+  document.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
+  showTab(["applications", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
+  $("profileForm").onsubmit = saveProfile; $("pwForm").onsubmit = changePw;
+  $("profileResume").onchange = uploadCv;
+  $("deleteCvBtn").onclick = () => $("confirmModal").classList.remove("hidden");
+  $("confirmNo").onclick = () => $("confirmModal").classList.add("hidden");
+  $("confirmYes").onclick = removeCv;
+  $("bigAvatar").onclick = openAvatars; $("avClose").onclick = () => $("avatarModal").classList.add("hidden");
+  $("avFile").onchange = uploadAvatar;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".modal-overlay").forEach((m) => m.classList.add("hidden")); });
+  loadApplications();
 });
 
-async function removeOldCv() {
-  const m = (profile.resume_url || "").split("/storage/v1/object/public/resumes/")[1];
-  if (m) await sb.storage.from("resumes").remove([decodeURIComponent(m)]);
+async function saveProfile(e) {
+  e.preventDefault(); const b = $("saveProfileBtn"); b.disabled = true; b.textContent = "Saving…";
+  const v = (id) => $(id).value.trim();
+  const row = { id: user.id, email: user.email, full_name: v("profileFullName"), phone: v("profilePhone"), whatsapp: v("profileWhatsapp"), county: v("profileCounty"), institution: v("profileInstitution"), course: v("profileCourse"), bio: v("profileBio"), updated_at: new Date().toISOString() };
+  const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
+  b.disabled = false; b.textContent = "Save changes";
+  if (error) return say("Could not save: " + error.message, true);
+  Object.assign(profile, row); paintAvatars(); say("Profile saved.");
 }
 
-async function loadApps() {
-  const box = $("appsList");
-  const { data: apps, error } = await sb.from("applications").select("opportunity_id, created_at, status").eq("user_id", user.id).order("created_at", { ascending: false });
-  if (error) return (box.innerHTML = `<p class="message error">Could not load applications.</p>`);
-  if (!apps?.length) return (box.innerHTML = `<h2>No applications yet</h2><p class="sub">Browse <a href="dashboard.html" style="text-decoration:underline">opportunities</a> and apply to your first one.</p>`);
-  const { data: opps } = await sb.from("opportunities").select("id,title,company,location,type").in("id", apps.map((a) => a.opportunity_id));
-  const m = new Map((opps || []).map((o) => [o.id, o]));
-  box.innerHTML = apps.map((a) => {
-    const o = m.get(a.opportunity_id), [label, cls] = ST[a.status] || ST.new;
-    return `<div class="app"><div><h3>${esc(o?.title || "Removed opportunity")}</h3><p>${o ? esc(o.company) + " · " + esc(o.location) + " · " : ""}Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="st ${cls}">${label}</span></div>`;
-  }).join("");
+function renderCv() {
+  const u = profile.resume_url;
+  $("resumeStatus").innerHTML = u ? `<a href="${esc(u)}" target="_blank" rel="noopener">View current CV</a>` : `<span style="color:var(--mute)">No CV uploaded yet</span>`;
+  $("deleteCvBtn").classList.toggle("hidden", !u); $("uploadLbl").textContent = u ? "Replace" : "Upload";
+}
+async function uploadCv() {
+  const f = $("profileResume").files[0]; if (!f) return;
+  if (f.size > 30 * 1024 * 1024) return say("File is larger than 30 MB.", true);
+  $("uploadLbl").textContent = "Uploading…";
+  const path = `${user.id}/${Date.now()}_${f.name.replace(/[^\w.\-]/g, "_")}`;
+  const up = await sb.storage.from("resumes").upload(path, f, { upsert: false });
+  if (up.error) { renderCv(); return say("Upload failed: " + up.error.message, true); }
+  const url = sb.storage.from("resumes").getPublicUrl(path).data.publicUrl, old = pathOf(profile.resume_url, "resumes");
+  const { error } = await sb.from("profiles").update({ resume_url: url, updated_at: new Date().toISOString() }).eq("id", user.id);
+  if (error) return say("Could not save CV: " + error.message, true);
+  if (old) sb.storage.from("resumes").remove([old]);
+  profile.resume_url = url; renderCv(); say("CV uploaded.");
+}
+async function removeCv() {
+  $("confirmModal").classList.add("hidden"); const old = pathOf(profile.resume_url, "resumes");
+  const { error } = await sb.from("profiles").update({ resume_url: null, updated_at: new Date().toISOString() }).eq("id", user.id);
+  if (error) return say("Could not remove CV: " + error.message, true);
+  if (old) sb.storage.from("resumes").remove([old]);
+  profile.resume_url = null; renderCv(); say("CV removed.");
+}
+
+async function setAvatar(url) {
+  const { error } = await sb.from("profiles").update({ avatar_url: url, updated_at: new Date().toISOString() }).eq("id", user.id);
+  if (error) return say("Could not update photo: " + error.message, true);
+  profile.avatar_url = url; paintAvatars(); $("avatarModal").classList.add("hidden"); say("Photo updated.");
+}
+async function openAvatars() {
+  $("avatarModal").classList.remove("hidden");
+  const { data } = await sb.from("avatars").select("url,label").eq("active", true);
+  $("avGrid").innerHTML = (data || []).map((a) => `<button type="button" data-u="${esc(a.url)}" class="${a.url === profile.avatar_url ? "sel" : ""}" aria-label="${esc(a.label || "Avatar")}"><img src="${esc(a.url)}" alt=""></button>`).join("") || `<small style="color:var(--mute)">No default avatars yet.</small>`;
+  $("avGrid").onclick = (e) => { const b = e.target.closest("button"); if (b) setAvatar(b.dataset.u); };
+}
+async function uploadAvatar() {
+  const f = $("avFile").files[0]; if (!f) return;
+  if (f.size > 2 * 1024 * 1024) return say("Photo is larger than 2 MB.", true);
+  const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[f.type]; if (!ext) return say("Use a PNG, JPG or WebP image.", true);
+  const path = `${user.id}/${Date.now()}.${ext}`, up = await sb.storage.from("avatars").upload(path, f, { contentType: f.type });
+  if (up.error) return say("Upload failed: " + up.error.message, true);
+  const old = pathOf(profile.avatar_url, "avatars");
+  await setAvatar(sb.storage.from("avatars").getPublicUrl(path).data.publicUrl);
+  if (old && old.startsWith(user.id + "/")) sb.storage.from("avatars").remove([old]);
+}
+
+async function loadApplications() {
+  const { data, error } = await sb.from("applications").select("id,status,created_at,opportunities(title,company,location)").eq("user_id", user.id).order("created_at", { ascending: false });
+  const box = $("applicationsList");
+  if (error) return (box.innerHTML = `<div class="empty">Could not load applications.</div>`);
+  box.innerHTML = (data || []).length ? data.map((a) => { const o = a.opportunities || {}, s = a.status || "new"; return `<div class="app"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div class="grow"><h3>${esc(o.title || "Opportunity removed")}</h3><p>${esc(o.company || "")}${o.location ? " · " + esc(o.location) : ""} · Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="badge st-${esc(s)}">${esc(STATUS[s] || s)}</span></div>`; }).join("") : `<div class="empty">You haven't applied to anything yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
+}
+
+async function changePw(e) {
+  e.preventDefault(); const a = $("newPw").value;
+  if (a !== $("newPw2").value) return say("Passwords do not match.", true);
+  $("pwBtn").disabled = true; const { error } = await sb.auth.updateUser({ password: a }); $("pwBtn").disabled = false;
+  if (error) return say(error.message, true);
+  $("pwForm").reset(); say("Password updated.");
 }

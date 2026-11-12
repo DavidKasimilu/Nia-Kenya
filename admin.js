@@ -1,545 +1,182 @@
 const GATEWAY_URL = "https://nia-gateway.davidkasimilu71.workers.dev";
 const EDGE_KEY = "cf-worker-edge-managed";
+const sb = window.supabase ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const icons = () => window.__icons && window.__icons();
+const dt = (d) => new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
+const badge = (s) => `<span class="badge b-${esc(s)}">${esc(s)}</span>`;
+const ST = ["new", "reviewing", "shortlisted", "contacted", "rejected"];
+let me, fields = [];
 
-const supabaseClient = window.supabase
-  ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : null;
-
-const ADMIN_EMAILS = [
-  "davidkasimilu71@gmail.com",
-  "nkepedavid@gmail.com"
-];
-
-// In-memory data
-let allOpportunities = [];
-let allApplications = [];
-let allUsers = [];
-let currentSubView = "opps"; 
-
-function showStatusModal(isSuccess, title, message) {
-  const modal = document.getElementById("statusModal");
-  const modalIcon = document.getElementById("statusModalIcon");
-  const modalTitle = document.getElementById("statusModalTitle");
-  const modalMsg = document.getElementById("statusModalMessage");
-
-  if (!modal) {
-    alert(`${title}: ${message}`);
-    return;
-  }
-
-  if (modalIcon) modalIcon.textContent = isSuccess ? "✅" : "⚠️";
-  if (modalTitle) {
-    modalTitle.textContent = title;
-    modalTitle.style.color = isSuccess ? "#0f172a" : "#dc2626";
-  }
-  if (modalMsg) modalMsg.textContent = message;
-
-  modal.classList.remove("hidden");
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3000); }
+function openModal(html) { $("modalBody").innerHTML = html + ""; $("modal").classList.remove("hidden"); icons(); }
+function closeModal() { $("modal").classList.add("hidden"); }
+function confirmBox(title, msg, ok) {
+  return new Promise((res) => {
+    openModal(`<h2>${esc(title)}</h2><p class="sub">${esc(msg)}</p><button class="btn btn-danger" id="cY" style="width:100%">${esc(ok)}</button><button class="btn btn-ghost" id="cN">Cancel</button>`);
+    $("cY").onclick = () => { closeModal(); res(true); }; $("cN").onclick = () => { closeModal(); res(false); };
+  });
 }
+async function log(action, type, id, details = {}) { await sb.from("audit_log").insert([{ actor_id: me.id, actor_email: me.email, action, target_type: type, target_id: String(id || ""), details }]); }
+function head(t, s, btn = "") { return `<div class="bar"><div><h1>${esc(t)}</h1><p class="sub" style="margin-bottom:0">${esc(s)}</p></div>${btn}</div>`; }
+const empty = (t) => `<div class="empty">${esc(t)}</div>`;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // Modal Dismiss Handlers
-  const closeModalBtn = document.getElementById("closeStatusModalBtn");
-  const statusModal = document.getElementById("statusModal");
-  if (closeModalBtn && statusModal) {
-    closeModalBtn.addEventListener("click", () => statusModal.classList.add("hidden"));
-  }
-  window.addEventListener("click", (e) => {
-    if (e.target === statusModal) statusModal.classList.add("hidden");
-    const editModal = document.getElementById("editOppModal");
-    if (e.target === editModal) editModal.classList.add("hidden");
-  });
-
-  if (!supabaseClient) {
-    alert("Supabase failed to initialize.");
-    return;
-  }
-
-  // 1. Verify User and Admin Privileges
-  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-  if (sessionError || !session) {
-    window.location.href = "index.html";
-    return;
-  }
-
-  const userEmail = session.user.email ? session.user.email.toLowerCase() : "";
-  const isDirectAdmin = ADMIN_EMAILS.includes(userEmail);
-
-  let isProfileAdmin = false;
-  try {
-    const { data: profile } = await supabaseClient
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .maybeSingle();
-    isProfileAdmin = profile && profile.role === "admin";
-  } catch (err) {
-    console.error("Profile check error:", err);
-  }
-
-  if (!isDirectAdmin && !isProfileAdmin) {
-    alert("Access Denied: Admin privileges required.");
-    window.location.href = "dashboard.html";
-    return;
-  }
-
-  // 2. Sign Out
-  const logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async () => {
-      await supabaseClient.auth.signOut();
-      window.location.href = "index.html";
-    });
-  }
-
-  // 3. Main Navigation Tabs (Publish vs Control Center)
-  const tabPublish = document.getElementById("tabPublish");
-  const tabControl = document.getElementById("tabControl");
-  const publishSection = document.getElementById("publishSection");
-  const controlSection = document.getElementById("controlSection");
-
-  tabPublish.addEventListener("click", () => {
-    tabPublish.classList.add("active");
-    tabControl.classList.remove("active");
-    publishSection.classList.remove("hidden");
-    controlSection.classList.add("hidden");
-  });
-
-  tabControl.addEventListener("click", () => {
-    tabControl.classList.add("active");
-    tabPublish.classList.remove("active");
-    controlSection.classList.remove("hidden");
-    publishSection.classList.add("hidden");
-    loadAdminData();
-  });
-
-  // 4. Sub-tabs (Opportunities vs Applications vs Users)
-  const subTabOpps = document.getElementById("subTabOpps");
-  const subTabApps = document.getElementById("subTabApps");
-  const subTabUsers = document.getElementById("subTabUsers");
-  const oppsView = document.getElementById("oppsControlView");
-  const appsView = document.getElementById("appsControlView");
-  const usersView = document.getElementById("usersControlView");
-
-  function switchSubTab(targetView, activeBtn) {
-    currentSubView = targetView;
-    [subTabOpps, subTabApps, subTabUsers].forEach(btn => btn.classList.remove("active"));
-    [oppsView, appsView, usersView].forEach(view => view.classList.add("hidden"));
-
-    activeBtn.classList.add("active");
-    if (targetView === "opps") oppsView.classList.remove("hidden");
-    if (targetView === "apps") appsView.classList.remove("hidden");
-    if (targetView === "users") usersView.classList.remove("hidden");
-
-    applyFilterAndSort();
-  }
-
-  subTabOpps.addEventListener("click", () => switchSubTab("opps", subTabOpps));
-  subTabApps.addEventListener("click", () => switchSubTab("apps", subTabApps));
-  subTabUsers.addEventListener("click", () => switchSubTab("users", subTabUsers));
-
-  // 5. Search & Sort Listeners
-  const searchInput = document.getElementById("adminSearchInput");
-  const sortSelect = document.getElementById("adminSortSelect");
-
-  if (searchInput) searchInput.addEventListener("input", applyFilterAndSort);
-  if (sortSelect) sortSelect.addEventListener("change", applyFilterAndSort);
-
-  // 6. Form Submission (Publish Opportunity)
-  const postJobForm = document.getElementById("postJobForm");
-  const submitBtn = document.getElementById("submitBtn");
-
-  if (postJobForm) {
-    postJobForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const title = document.getElementById("jobTitle")?.value.trim();
-      const company = document.getElementById("companyName")?.value.trim();
-      const location = document.getElementById("jobLocation")?.value.trim();
-      const type = document.getElementById("jobType")?.value || "Industrial Attachment";
-      const description = document.getElementById("jobDesc")?.value.trim();
-
-      if (!title || !company || !location || !description) {
-        showStatusModal(false, "Incomplete Form", "Please fill in all fields.");
-        return;
-      }
-
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = "Publishing...";
-      }
-
-      try {
-        const { error } = await supabaseClient
-          .from("opportunities")
-          .insert([{ title, company, location, type, description }]);
-
-        if (error) {
-          showStatusModal(false, "Failed to Post", error.message);
-          return;
-        }
-
-        showStatusModal(true, "Published!", `Opportunity "${title}" is now live.`);
-        postJobForm.reset();
-      } catch (err) {
-        showStatusModal(false, "Error", err.message || "Failed to communicate with database.");
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = "Publish Opportunity";
-        }
-      }
-    });
-  }
-
-  setupEditModal();
+  if (!sb) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return (location.href = "index.html");
+  me = session.user;
+  const { data: p } = await sb.from("profiles").select("role,status").eq("id", me.id).maybeSingle();
+  if (p?.role !== "admin" || p.status === "banned") return (location.href = "dashboard.html");
+  $("logoutBtn").onclick = async () => { await sb.auth.signOut(); location.href = "index.html"; };
+  $("modal").onclick = (e) => { if (e.target === $("modal")) closeModal(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  const f = await sb.from("application_fields").select("*").order("sort_order"); fields = f.data || [];
+  window.addEventListener("hashchange", route); route();
 });
 
-// Fetch all records across tables
-async function loadAdminData() {
-  const oppsTbody = document.getElementById("oppsTableBody");
-  const appsTbody = document.getElementById("appsTableBody");
-  const usersTbody = document.getElementById("usersTableBody");
-
-  if (oppsTbody) oppsTbody.innerHTML = `<tr><td colspan="5" class="loading-text">Loading opportunities...</td></tr>`;
-  if (appsTbody) appsTbody.innerHTML = `<tr><td colspan="6" class="loading-text">Loading applications...</td></tr>`;
-  if (usersTbody) usersTbody.innerHTML = `<tr><td colspan="5" class="loading-text">Loading users...</td></tr>`;
-
-  try {
-    const [oppsRes, appsRes, usersRes] = await Promise.all([
-      supabaseClient.from("opportunities").select("*").order("created_at", { ascending: false }),
-      supabaseClient.from("applications").select("*").order("created_at", { ascending: false }),
-      supabaseClient.from("profiles").select("*")
-    ]);
-
-    allOpportunities = oppsRes.data || [];
-    allUsers = usersRes.data || [];
-
-    const oppMap = new Map(allOpportunities.map(o => [o.id, o]));
-    allApplications = (appsRes.data || []).map(app => ({
-      ...app,
-      oppTitle: oppMap.get(app.opportunity_id)?.title || "Archived Role",
-      oppCompany: oppMap.get(app.opportunity_id)?.company || "N/A"
-    }));
-
-    applyFilterAndSort();
-  } catch (err) {
-    console.error("Data load failed:", err);
-  }
+const views = { overview, opportunities, applications, users, avatars, announcements, audit };
+async function route() {
+  const v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
+  document.querySelectorAll("#nav a[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === v));
+  $("view").onclick = null; $("view").innerHTML = empty("Loading…");
+  try { await views[v](); } catch (e) { $("view").innerHTML = empty("Something went wrong: " + e.message); }
+  icons(); window.scrollTo(0, 0);
 }
 
-// Search and Sorting 
-function applyFilterAndSort() {
-  const query = (document.getElementById("adminSearchInput")?.value || "").toLowerCase().trim();
-  const sortMode = document.getElementById("adminSortSelect")?.value || "newest";
-
-  if (currentSubView === "opps") {
-    let filtered = allOpportunities.filter(o => 
-      (o.title && o.title.toLowerCase().includes(query)) ||
-      (o.company && o.company.toLowerCase().includes(query)) ||
-      (o.location && o.location.toLowerCase().includes(query)) ||
-      (o.type && o.type.toLowerCase().includes(query))
-    );
-
-    filtered.sort((a, b) => {
-      if (sortMode === "newest") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-      if (sortMode === "oldest") return new Date(a.created_at || 0) - new Date(b.created_at || 0);
-      if (sortMode === "az") return (a.title || "").localeCompare(b.title || "");
-      return 0;
-    });
-
-    renderOpportunitiesTable(filtered);
-  } else if (currentSubView === "apps") {
-    let filtered = allApplications.filter(a =>
-      (a.user_email && a.user_email.toLowerCase().includes(query)) ||
-      (a.oppTitle && a.oppTitle.toLowerCase().includes(query)) ||
-      (a.oppCompany && a.oppCompany.toLowerCase().includes(query))
-    );
-
-    filtered.sort((a, b) => {
-      if (sortMode === "newest") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-      if (sortMode === "oldest") return new Date(a.created_at || 0) - new Date(b.created_at || 0);
-      if (sortMode === "az") return (a.user_email || "").localeCompare(b.user_email || "");
-      return 0;
-    });
-
-    renderApplicationsTable(filtered);
-  } else {
-    let filtered = allUsers.filter(u => 
-      (u.email && u.email.toLowerCase().includes(query)) ||
-      (u.role && u.role.toLowerCase().includes(query)) ||
-      (u.status && u.status.toLowerCase().includes(query))
-    );
-
-    filtered.sort((a, b) => {
-      if (sortMode === "newest") return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-      if (sortMode === "oldest") return new Date(a.created_at || 0) - new Date(b.created_at || 0);
-      if (sortMode === "az") return (a.email || "").localeCompare(b.email || "");
-      return 0;
-    });
-
-    renderUsersTable(filtered);
-  }
+/* ---------- Overview ---------- */
+async function overview() {
+  const [s, r] = await Promise.all([sb.rpc("admin_dashboard_stats"), sb.from("applications").select("id,user_email,created_at,opportunities(title)").order("created_at", { ascending: false }).limit(6)]);
+  if (s.error) throw s.error; const d = s.data, days = d.applications_by_day || [], max = Math.max(1, ...days.map((x) => x.count));
+  const st = (i, l, v, n) => `<div class="stat"><div class="l"><i data-lucide="${i}" class="icon"></i>${l}</div><div class="v">${v}</div><div class="n">${n || "&nbsp;"}</div></div>`;
+  $("view").innerHTML = head("Overview", "How Nia is doing right now.") +
+    `<div class="stats">${st("briefcase", "Open listings", d.opportunities_open, d.opportunities_total + " total")}${st("inbox", "Applications", d.applications_total, d.applications_new + " new, " + d.applications_7d + " this week")}${st("users", "Students", d.students_total, "+" + d.students_7d + " this week")}${st("user-x", "Banned", d.users_banned)}</div>
+    <div class="cols"><div class="panel"><h2>Applications, last 14 days</h2><div class="chart">${days.map((x) => `<div style="height:${(x.count / max) * 100}%" data-t="${esc(x.day)}: ${x.count}"></div>`).join("")}</div></div>
+    <div class="panel"><h2>Latest applications</h2>${(r.data || []).map((a) => `<p style="font-size:.88rem;margin-bottom:.6rem"><b>${esc(a.opportunities?.title || "Removed listing")}</b><br><span style="color:var(--mute)">${esc(a.user_email)} · ${dt(a.created_at)}</span></p>`).join("") || "<p style='color:var(--mute)'>Nothing yet.</p>"}</div></div>`;
 }
 
-// 1. Opportunities Table View
-function renderOpportunitiesTable(list) {
-  const tbody = document.getElementById("oppsTableBody");
-  if (!tbody) return;
-
-  if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-text">No opportunities found matching your criteria.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = list.map(opp => `
-    <tr>
-      <td><strong>${opp.title}</strong></td>
-      <td>${opp.company}</td>
-      <td>${opp.type}</td>
-      <td>${opp.location}</td>
-      <td>
-        <div class="table-actions">
-          <button class="action-btn edit-btn" title="Edit" onclick="openEditModal('${opp.id}')">
-            <i class="fa-solid fa-pen"></i>
-          </button>
-          <button class="action-btn delete-btn" title="Delete" onclick="deleteOpportunity('${opp.id}', '${opp.title.replace(/'/g, "\\'")}')">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join("");
+/* ---------- Opportunities ---------- */
+async function opportunities() {
+  const { data, error } = await sb.from("opportunities").select("*").order("created_at", { ascending: false }); if (error) throw error;
+  $("view").innerHTML = head("Listings", "Create and manage opportunities.", `<button class="btn btn-green" id="newOpp"><i data-lucide="plus" class="icon"></i> New listing</button>`) +
+    `<div class="rows">${(data || []).map((o) => `<div class="r"><div class="grow"><h3>${esc(o.title)}</h3><p>${esc(o.company)} · ${esc(o.location)} · ${esc(o.type)}${o.deadline ? " · closes " + dt(o.deadline) : ""}</p></div>${badge(o.status)}
+      <div class="acts"><button class="ib" data-e="${esc(o.id)}" title="Edit"><i data-lucide="pencil" class="icon"></i></button><button class="ib" data-t="${esc(o.id)}" title="${o.status === "published" ? "Close" : "Publish"}"><i data-lucide="${o.status === "published" ? "lock" : "send"}" class="icon"></i></button><button class="ib d" data-d="${esc(o.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></div></div>`).join("") || empty("No listings yet.")}</div>`;
+  $("newOpp").onclick = () => oppForm();
+  $("view").onclick = async (e) => {
+    const b = e.target.closest("button[data-e],button[data-t],button[data-d]"); if (!b) return;
+    const o = data.find((x) => x.id === (b.dataset.e || b.dataset.t || b.dataset.d));
+    if (b.dataset.e) return oppForm(o);
+    if (b.dataset.t) { const ns = o.status === "published" ? "closed" : "published"; const { error } = await sb.from("opportunities").update({ status: ns }).eq("id", o.id); if (error) return toast(error.message); await log("opportunity." + ns, "opportunity", o.id, { title: o.title }); toast("Listing " + ns + "."); return route(); }
+    if (await confirmBox("Delete listing?", `"${o.title}" and all its applications will be removed.`, "Delete")) { const { error } = await sb.from("opportunities").delete().eq("id", o.id); if (error) return toast(error.message); await log("opportunity.delete", "opportunity", o.id, { title: o.title }); toast("Deleted."); route(); }
+  };
+}
+function oppForm(o = {}) {
+  const req = new Set(o.required_fields || []);
+  openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${o.id ? "Edit listing" : "New listing"}</h2><p class="sub">Fill in the details students will see.</p><div id="fm" class="message hidden"></div>
+  <form id="of"><div class="form-group"><label>Title</label><input name="title" required value="${esc(o.title)}"></div>
+  <div class="two"><div class="form-group"><label>Company</label><input name="company" required value="${esc(o.company)}"></div><div class="form-group"><label>Location</label><input name="location" required value="${esc(o.location)}"></div></div>
+  <div class="two"><div class="form-group"><label>Type</label><select name="type">${["Job", "Internship", "Attachment"].map((t) => `<option ${o.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+  <div class="form-group"><label>Status</label><select name="status">${["published", "draft", "closed"].map((t) => `<option ${(o.status || "published") === t ? "selected" : ""}>${t}</option>`).join("")}</select></div></div>
+  <div class="form-group"><label>Application deadline (optional)</label><input type="date" name="deadline" value="${o.deadline ? new Date(o.deadline).toLocaleDateString("en-CA") : ""}"></div>
+  <div class="form-group"><label>Description</label><textarea name="description" rows="5" required>${esc(o.description)}</textarea></div>
+  <div class="form-group"><label>Details to collect from applicants</label><div class="checks2">${fields.filter((f) => f.active).map((f) => `<label><input type="checkbox" name="rf" value="${esc(f.key)}" ${req.has(f.key) ? "checked" : ""}> ${esc(f.label)}</label>`).join("")}</div></div>
+  <button class="btn btn-submit" id="sv">${o.id ? "Save changes" : "Publish listing"}</button></form>`);
+  $("x").onclick = closeModal;
+  $("of").onsubmit = async (e) => {
+    e.preventDefault(); const f = new FormData(e.target), dl = f.get("deadline");
+    const row = { title: f.get("title").trim(), company: f.get("company").trim(), location: f.get("location").trim(), type: f.get("type"), status: f.get("status"), description: f.get("description").trim(), deadline: dl ? new Date(dl + "T23:59:59+03:00").toISOString() : null, required_fields: f.getAll("rf") };
+    $("sv").disabled = true;
+    const q = o.id ? sb.from("opportunities").update(row).eq("id", o.id).select("id").single() : sb.from("opportunities").insert([row]).select("id").single();
+    const { data, error } = await q; $("sv").disabled = false;
+    if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.message; return; }
+    await log(o.id ? "opportunity.update" : "opportunity.create", "opportunity", data.id, { title: row.title }); closeModal(); toast("Saved."); route();
+  };
 }
 
-// 2. Applications Table View
-function renderApplicationsTable(list) {
-  const tbody = document.getElementById("appsTableBody");
-  if (!tbody) return;
-
-  if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-text">No applications found.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = list.map(app => {
-    const dateFormatted = app.created_at ? new Date(app.created_at).toLocaleDateString() : "Recently";
-    const resumeCell = app.resume_url
-      ? `<a href="${app.resume_url}" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
-          <i class="fa-solid fa-file-pdf" style="color: #dc2626;"></i> View CV
-        </a>`
-      : `<span style="font-size: 0.78rem; color: #94a3b8; font-style: italic;">Not attached</span>`;
-
-    const appIdentifier = app.id || app.opportunity_id;
-
-    return `
-      <tr>
-        <td><strong>${app.user_email || "N/A"}</strong></td>
-        <td>${app.oppTitle}</td>
-        <td>${app.oppCompany}</td>
-        <td>${resumeCell}</td>
-        <td>${dateFormatted}</td>
-        <td>
-          <div class="table-actions">
-            <button class="action-btn delete-btn" title="Remove Application Record" onclick="deleteApplication('${appIdentifier}')">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join("");
+/* ---------- Applications ---------- */
+async function applications() {
+  const [a, o] = await Promise.all([sb.from("applications").select("*,opportunities(title,company)").order("created_at", { ascending: false }), sb.from("opportunities").select("id,title").order("title")]);
+  if (a.error) throw a.error; const ids = [...new Set(a.data.map((x) => x.user_id).filter(Boolean))];
+  const pr = ids.length ? (await sb.from("profiles").select("id,full_name,phone,whatsapp,county,institution,course,resume_url").in("id", ids)).data || [] : [];
+  const P = Object.fromEntries(pr.map((x) => [x.id, x])); let list = a.data;
+  const draw = () => {
+    const fo = $("fOpp").value, fs = $("fSt").value, q = $("fQ").value.toLowerCase();
+    list = a.data.filter((x) => (!fo || x.opportunity_id === fo) && (!fs || x.status === fs) && (!q || (x.user_email + " " + (P[x.user_id]?.full_name || "")).toLowerCase().includes(q)));
+    $("appRows").innerHTML = list.map((x) => `<div class="r" data-a="${esc(x.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(P[x.user_id]?.full_name || x.user_email)}</h3><p>${esc(x.opportunities?.title || "Removed listing")} · ${dt(x.created_at)}</p></div>${badge(x.status)}<i data-lucide="chevron-right" class="icon"></i></div>`).join("") || empty("No applications match.");
+    icons();
+  };
+  $("view").innerHTML = head("Applicants", "Review and contact applicants.", `<button class="btn btn-ghost" id="csv"><i data-lucide="download" class="icon"></i> Export CSV</button>`) +
+    `<div class="toolbar"><input id="fQ" placeholder="Search name or email"><select id="fOpp"><option value="">All listings</option>${o.data.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join("")}</select><select id="fSt"><option value="">All statuses</option>${ST.map((s) => `<option>${s}</option>`).join("")}</select></div><div class="rows" id="appRows"></div>`;
+  ["fQ", "fOpp", "fSt"].forEach((i) => ($(i).oninput = draw)); draw();
+  $("appRows").onclick = (e) => { const r = e.target.closest("[data-a]"); if (r) appDetail(list.find((x) => x.id === r.dataset.a), P[list.find((x) => x.id === r.dataset.a).user_id] || {}); };
+  $("csv").onclick = () => {
+    const keys = [...new Set(list.flatMap((x) => Object.keys(x.answers || {})))], q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["Listing", "Company", "Name", "Email", "Phone", "Status", "Applied", ...keys]].concat(list.map((x) => [x.opportunities?.title, x.opportunities?.company, P[x.user_id]?.full_name, x.user_email, P[x.user_id]?.phone, x.status, new Date(x.created_at).toISOString().slice(0, 10), ...keys.map((k) => (x.answers || {})[k])]));
+    const url = URL.createObjectURL(new Blob(["\ufeff" + rows.map((r) => r.map(q).join(",")).join("\n")], { type: "text/csv" }));
+    Object.assign(document.createElement("a"), { href: url, download: "nia-applicants.csv" }).click(); URL.revokeObjectURL(url);
+  };
+}
+function appDetail(a, p) {
+  const label = (k) => fields.find((f) => f.key === k)?.label || k, cv = a.resume_url || p.resume_url;
+  const rows = [["Email", a.user_email], ["Phone", p.phone], ["WhatsApp", p.whatsapp], ["County", p.county], ["Institution", p.institution], ["Course", p.course]].filter((r) => r[1]);
+  openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${esc(p.full_name || a.user_email)}</h2><p class="sub">${esc(a.opportunities?.title || "")} · applied ${dt(a.created_at)}</p>
+  <dl class="dl">${rows.map((r) => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("")}${Object.entries(a.answers || {}).map(([k, v]) => `<dt>${esc(label(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+  ${cv ? `<a class="btn btn-ghost btn-sm" href="${esc(cv)}" target="_blank" rel="noopener"><i data-lucide="file-text" class="icon"></i> Open CV</a>` : ""}
+  <div class="form-group" style="margin-top:1rem"><label>Status</label><select id="aSt">${ST.map((s) => `<option ${a.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+  <div class="form-group"><label>Private notes</label><textarea id="aNote" rows="3">${esc(a.admin_notes)}</textarea></div><button class="btn btn-submit" id="aSave">Save</button>`);
+  $("x").onclick = closeModal;
+  $("aSave").onclick = async () => { const { error } = await sb.from("applications").update({ status: $("aSt").value, admin_notes: $("aNote").value.trim() || null }).eq("id", a.id); if (error) return toast(error.message); await log("application.update", "application", a.id, { status: $("aSt").value }); closeModal(); toast("Saved."); route(); };
 }
 
-// 3. Users Table View
-function renderUsersTable(list) {
-  const tbody = document.getElementById("usersTableBody");
-  if (!tbody) return;
-
-  if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-text">No users found matching your criteria.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = list.map(user => {
-    const isBanned = user.status === "banned";
-    const dateFormatted = user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A";
-
-    return `
-      <tr>
-        <td><strong>${user.email || "No email"}</strong></td>
-        <td>${user.role || "student"}</td>
-        <td>
-          <span class="status-chip ${isBanned ? 'banned' : 'active'}">
-            ${isBanned ? "Banned" : "Active"}
-          </span>
-        </td>
-        <td>${dateFormatted}</td>
-        <td>
-          <div class="table-actions">
-            <button class="action-btn ${isBanned ? 'unban-btn' : 'ban-btn'}" 
-              title="${isBanned ? 'Unban User' : 'Ban User'}" 
-              onclick="toggleBanUser('${user.id}', ${!isBanned})">
-              <i class="fa-solid ${isBanned ? 'fa-check' : 'fa-ban'}"></i>
-            </button>
-            <button class="action-btn delete-btn" title="Delete User Record" onclick="deleteUser('${user.id}')">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join("");
+/* ---------- Users ---------- */
+async function users() {
+  const { data, error } = await sb.from("profiles").select("id,email,full_name,role,status,created_at,institution").order("created_at", { ascending: false }); if (error) throw error;
+  const draw = () => {
+    const q = $("uQ").value.toLowerCase(); const l = data.filter((u) => !q || ((u.full_name || "") + u.email).toLowerCase().includes(q));
+    $("uRows").innerHTML = l.map((u) => `<div class="r"><div class="grow"><h3>${esc(u.full_name || u.email)}</h3><p>${esc(u.email)} · joined ${dt(u.created_at)}${u.institution ? " · " + esc(u.institution) : ""}</p></div>${u.role === "admin" ? badge("admin").replace("b-admin", "b-published") : ""}${badge(u.status || "active")}
+      ${u.role !== "admin" && u.id !== me.id ? `<div class="acts"><button class="ib" data-b="${esc(u.id)}" title="${u.status === "banned" ? "Unban" : "Ban"}"><i data-lucide="${u.status === "banned" ? "user-check" : "ban"}" class="icon"></i></button><button class="ib d" data-x="${esc(u.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></div>` : ""}</div>`).join("") || empty("No users found."); icons();
+  };
+  $("view").innerHTML = head("Users", data.length + " registered accounts.") + `<div class="toolbar"><input id="uQ" placeholder="Search name or email"></div><div class="rows" id="uRows"></div>`;
+  $("uQ").oninput = draw; draw();
+  $("uRows").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return; const u = data.find((x) => x.id === (b.dataset.b || b.dataset.x));
+    if (b.dataset.b) { const ns = u.status === "banned" ? "active" : "banned"; if (ns === "banned" && !(await confirmBox("Ban this user?", u.email + " will lose access immediately.", "Ban"))) return; const { error } = await sb.from("profiles").update({ status: ns }).eq("id", u.id); if (error) return toast(error.message); await log("user." + (ns === "banned" ? "ban" : "unban"), "user", u.id, { email: u.email }); toast("User " + ns + "."); return route(); }
+    if (await confirmBox("Delete this user?", u.email + " and all their applications will be permanently removed.", "Delete")) { const { error } = await sb.rpc("delete_user_by_admin", { target_user_id: u.id }); if (error) return toast(error.message); toast("User deleted."); route(); }
+  };
 }
 
-// Delete Opportunity
-window.deleteOpportunity = async function(id, title) {
-  if (!confirm(`Are you sure you want to delete the opportunity "${title}"?`)) return;
-
-  const { error } = await supabaseClient.from("opportunities").delete().eq("id", id);
-  if (error) {
-    showStatusModal(false, "Delete Failed", error.message);
-    return;
-  }
-
-  allOpportunities = allOpportunities.filter(o => o.id !== id);
-  applyFilterAndSort();
-  showStatusModal(true, "Deleted", `"${title}" has been removed.`);
-};
-
-// Delete Application 
-window.deleteApplication = async function(appIdentifier) {
-  if (!confirm("Are you sure you want to remove this application record?")) return;
-
-  let query = supabaseClient.from("applications").delete();
-
-  if (appIdentifier.includes("-")) {
-    query = query.eq("id", appIdentifier);
-  } else {
-    query = query.eq("opportunity_id", appIdentifier);
-  }
-
-  const { error } = await query;
-
-  if (error) {
-    showStatusModal(false, "Delete Failed", error.message);
-    return;
-  }
-
-  allApplications = allApplications.filter(a => a.id !== appIdentifier && a.opportunity_id !== appIdentifier);
-  applyFilterAndSort();
-  showStatusModal(true, "Removed", "Application record has been cleared.");
-};
-
-// User Ban/Unban Toggle
-window.toggleBanUser = async function(userId, setBanned) {
-  const actionText = setBanned ? "ban" : "unban";
-  if (!confirm(`Are you sure you want to ${actionText} this user?`)) return;
-
-  const newStatus = setBanned ? "banned" : "active";
-  const { error } = await supabaseClient
-    .from("profiles")
-    .update({ status: newStatus })
-    .eq("id", userId);
-
-  if (error) {
-    showStatusModal(false, "Action Failed", error.message);
-    return;
-  }
-
-  const target = allUsers.find(u => u.id === userId);
-  if (target) target.status = newStatus;
-  applyFilterAndSort();
-  showStatusModal(true, "Updated", `User status changed to ${newStatus}.`);
-};
-
-// User Profile & Auth Deletion 
-window.deleteUser = async function(userId) {
-  if (!confirm("Are you sure you want to permanently delete this user and their account? This cannot be undone.")) return;
-
-  try {
-    const { error } = await supabaseClient.rpc("delete_user_by_admin", {
-      target_user_id: userId
-    });
-
-    if (error) {
-      showStatusModal(false, "Delete Failed", error.message);
-      return;
-    }
-
-    allUsers = allUsers.filter(u => u.id !== userId);
-    allApplications = allApplications.filter(a => a.user_id !== userId);
-    applyFilterAndSort();
-
-    showStatusModal(true, "User Removed", "User account and all associated data have been permanently deleted.");
-  } catch (err) {
-    showStatusModal(false, "Error", err.message || "Failed to communicate with database.");
-  }
-};
-
-// Edit Opportunity
-function setupEditModal() {
-  const modal = document.getElementById("editOppModal");
-  const closeBtn = document.getElementById("closeEditModal");
-  const cancelBtn = document.getElementById("cancelEditBtn");
-  const form = document.getElementById("editOppForm");
-
-  const hide = () => modal.classList.add("hidden");
-  if (closeBtn) closeBtn.addEventListener("click", hide);
-  if (cancelBtn) cancelBtn.addEventListener("click", hide);
-
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const id = document.getElementById("editOppId").value;
-      const title = document.getElementById("editJobTitle").value.trim();
-      const company = document.getElementById("editCompanyName").value.trim();
-      const location = document.getElementById("editJobLocation").value.trim();
-      const type = document.getElementById("editJobType").value;
-      const description = document.getElementById("editJobDesc").value.trim();
-
-      const { error } = await supabaseClient
-        .from("opportunities")
-        .update({ title, company, location, type, description })
-        .eq("id", id);
-
-      if (error) {
-        showStatusModal(false, "Update Failed", error.message);
-        return;
-      }
-
-      const opp = allOpportunities.find(o => o.id === id);
-      if (opp) {
-        opp.title = title;
-        opp.company = company;
-        opp.location = location;
-        opp.type = type;
-        opp.description = description;
-      }
-
-      hide();
-      applyFilterAndSort();
-      showStatusModal(true, "Updated", `Opportunity "${title}" updated successfully.`);
-    });
-  }
+/* ---------- Avatars ---------- */
+async function avatars() {
+  const { data, error } = await sb.from("avatars").select("*").order("created_at", { ascending: false }); if (error) throw error;
+  $("view").innerHTML = head("Default avatars", "New students get one of these at random. They can swap it later.", `<label class="btn btn-green" for="avUp"><i data-lucide="upload" class="icon"></i> Add avatars</label><input id="avUp" type="file" multiple accept="image/png,image/jpeg,image/webp" class="hidden">`) +
+    `<div class="panel"><div class="avs">${(data || []).map((a) => `<figure class="${a.active ? "" : "off"}"><img src="${esc(a.url)}" alt=""><button class="ib" data-t="${esc(a.id)}" title="${a.active ? "Disable" : "Enable"}"><i data-lucide="${a.active ? "eye" : "eye-off"}" class="icon"></i></button> <button class="ib d" data-d="${esc(a.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></figure>`).join("") || empty("No avatars yet. Add a few square images (up to 2 MB each).")}</div></div>`;
+  $("avUp").onchange = async (e) => {
+    let n = 0; for (const f of e.target.files) {
+      const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[f.type]; if (!ext || f.size > 2097152) { toast("Skipped " + f.name); continue; }
+      const path = `defaults/${Date.now()}_${n}.${ext}`, up = await sb.storage.from("avatars").upload(path, f, { contentType: f.type }); if (up.error) { toast(up.error.message); continue; }
+      const { error } = await sb.from("avatars").insert([{ url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl, label: f.name, created_by: me.id }]); if (!error) n++;
+    } if (n) { await log("avatar.add", "avatar", "", { count: n }); toast(n + " added."); route(); }
+  };
+  $("view").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return; const a = data.find((x) => x.id === (b.dataset.t || b.dataset.d)); if (!a) return;
+    if (b.dataset.t) { await sb.from("avatars").update({ active: !a.active }).eq("id", a.id); return route(); }
+    if (await confirmBox("Delete avatar?", "Users who already have it keep their copy.", "Delete")) { const p = a.url.split("/object/public/avatars/")[1]; if (p) await sb.storage.from("avatars").remove([decodeURIComponent(p)]); await sb.from("avatars").delete().eq("id", a.id); route(); }
+  };
 }
 
-window.openEditModal = function(id) {
-  const opp = allOpportunities.find(o => o.id === id);
-  if (!opp) return;
+/* ---------- Announcements ---------- */
+async function announcements() {
+  const { data, error } = await sb.from("announcements").select("*").order("created_at", { ascending: false }); if (error) throw error;
+  $("view").innerHTML = head("Announcements", "The newest active message shows as a banner on the student feed.") +
+    `<form class="panel" id="af" style="margin-bottom:1rem"><div class="form-group"><label>New message</label><input id="aMsg" maxlength="200" required placeholder="e.g. New attachment listings are live"></div><button class="btn btn-primary">Publish</button></form>
+    <div class="rows">${(data || []).map((a) => `<div class="r"><div class="grow"><h3>${esc(a.message)}</h3><p>${dt(a.created_at)}</p></div>${badge(a.active ? "active" : "draft").replace("draft", "off")}<div class="acts"><button class="ib" data-t="${esc(a.id)}" title="Toggle"><i data-lucide="${a.active ? "eye-off" : "eye"}" class="icon"></i></button><button class="ib d" data-d="${esc(a.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i></button></div></div>`).join("") || empty("No announcements yet.")}</div>`;
+  $("af").onsubmit = async (e) => { e.preventDefault(); const { error } = await sb.from("announcements").insert([{ message: $("aMsg").value.trim(), created_by: me.id }]); if (error) return toast(error.message); await log("announcement.create", "announcement", "", { message: $("aMsg").value.trim() }); route(); };
+  $("view").onclick = async (e) => { const b = e.target.closest("button[data-t],button[data-d]"); if (!b) return; const a = data.find((x) => x.id === (b.dataset.t || b.dataset.d)); if (b.dataset.t) await sb.from("announcements").update({ active: !a.active }).eq("id", a.id); else await sb.from("announcements").delete().eq("id", a.id); route(); };
+}
 
-  document.getElementById("editOppId").value = opp.id;
-  document.getElementById("editJobTitle").value = opp.title || "";
-  document.getElementById("editCompanyName").value = opp.company || "";
-  document.getElementById("editJobLocation").value = opp.location || "";
-  document.getElementById("editJobType").value = opp.type || "Industrial Attachment";
-  document.getElementById("editJobDesc").value = opp.description || "";
-
-  document.getElementById("editOppModal").classList.remove("hidden");
-};
+/* ---------- Audit log ---------- */
+async function audit() {
+  const { data, error } = await sb.from("audit_log").select("*").order("created_at", { ascending: false }).limit(100); if (error) throw error;
+  $("view").innerHTML = head("Audit log", "The last 100 admin actions.") + `<div class="rows">${(data || []).map((l) => `<div class="r"><div class="grow"><h3>${esc(l.action)}</h3><p>${esc(l.actor_email || "system")} · ${new Date(l.created_at).toLocaleString("en-KE")}${l.details && Object.keys(l.details).length ? " · " + esc(Object.values(l.details).join(", ")) : ""}</p></div></div>`).join("") || empty("No activity logged yet.")}</div>`;
+}

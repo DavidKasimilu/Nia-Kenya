@@ -9,92 +9,92 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="base.css" />
-  <link rel="stylesheet" href="dash.css" />
-  <link rel="stylesheet" href="prof.css" />
+  <link rel="stylesheet" href="base.css" /><link rel="stylesheet" href="dash.css" /><link rel="stylesheet" href="profile.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="container topbar-in">
-      <a href="dashboard.html" class="wordmark">nia<i>.</i></a>
-      <nav class="top-links"><a href="dashboard.html">Opportunities</a><a href="profile.html" class="active">My profile</a></nav>
-      <div class="me">
-        <button class="avatar" id="avatarBtn" aria-label="Account menu" aria-expanded="false"></button>
-        <div class="menu hidden" id="menu">
-          <div class="menu-head"><b id="menuName">Student</b><span id="menuEmail"></span></div>
-          <a href="dashboard.html"><i data-lucide="briefcase" class="icon"></i> Opportunities</a>
-          <a href="#settings" data-go="settings"><i data-lucide="settings" class="icon"></i> Settings</a>
-          <a href="admin.html" id="adminLink" class="hidden"><i data-lucide="layout-dashboard" class="icon"></i> Admin console</a>
-          <button id="logoutBtn" class="danger"><i data-lucide="log-out" class="icon"></i> Sign out</button>
-        </div>
+  <header class="topbar"><div class="container topbar-in">
+    <a href="dashboard.html" class="wordmark">nia<i>.</i></a>
+    <nav class="top-links"><a href="dashboard.html">Opportunities</a><a href="profile.html" class="active">My profile</a></nav>
+    <div class="me">
+      <button class="avatar" id="avatarBtn" aria-label="Account menu" aria-expanded="false"></button>
+      <div class="menu hidden" id="menu">
+        <div class="menu-head"><b id="menuName">Student</b><span id="menuEmail"></span></div>
+        <a href="dashboard.html"><i data-lucide="briefcase" class="icon"></i> Opportunities</a>
+        <a href="admin.html" id="adminLink" class="hidden"><i data-lucide="layout-dashboard" class="icon"></i> Admin console</a>
+        <button id="logoutBtn" class="danger"><i data-lucide="log-out" class="icon"></i> Sign out</button>
       </div>
     </div>
-  </header>
+  </div></header>
 
   <main class="container page">
-    <h1>My profile</h1>
-    <p class="sub" id="pEmail"></p>
-    <div class="ptabs" id="ptabs">
-      <button class="ptab on" data-tab="profile"><i data-lucide="user" class="icon"></i> Profile</button>
-      <button class="ptab" data-tab="applications"><i data-lucide="file-text" class="icon"></i> Applications</button>
-      <button class="ptab" data-tab="settings"><i data-lucide="settings" class="icon"></i> Settings</button>
+    <div class="p-head">
+      <button class="p-av" id="bigAvatar" aria-label="Change photo"></button>
+      <div><h1 id="displayFullName">Loading…</h1><p id="displayEmail"></p></div>
     </div>
+    <div class="ptabs" role="tablist">
+      <button class="ptab active" data-tab="profile">Profile</button>
+      <button class="ptab" data-tab="applications">Applications</button>
+      <button class="ptab" data-tab="settings">Settings</button>
+    </div>
+    <div id="statusMessage" class="message hidden" style="max-width:720px"></div>
 
-    <section class="panel" id="tab-profile">
-      <div class="pcard">
-        <h2>Photo</h2><p class="sub">Upload your own or pick a default avatar.</p>
-        <div class="av-row">
-          <div class="av-lg" id="avLg"></div>
-          <div class="av-actions">
-            <button class="btn btn-primary btn-sm" id="uploadAvatarBtn" type="button"><i data-lucide="upload" class="icon"></i> Upload photo</button>
-            <button class="btn btn-ghost btn-sm" id="pickAvatarBtn" type="button"><i data-lucide="shuffle" class="icon"></i> Choose default</button>
-          </div>
-          <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/webp" hidden />
+    <section id="tab-profile">
+      <form id="profileForm" class="pcard">
+        <h2>Personal details</h2>
+        <div class="form-group"><label for="profileEmail">Email</label><input id="profileEmail" type="email" disabled /></div>
+        <div class="form-group"><label for="profileFullName">Full name</label><input id="profileFullName" required placeholder="e.g. Jane Wanjiku" /></div>
+        <div class="row2">
+          <div class="form-group"><label for="profilePhone">Phone</label><input id="profilePhone" type="tel" placeholder="+254 712 345 678" /></div>
+          <div class="form-group"><label for="profileWhatsapp">WhatsApp</label><input id="profileWhatsapp" type="tel" placeholder="+254 712 345 678" /></div>
         </div>
-        <div class="defaults hidden" id="defaults"></div>
-      </div>
-
-      <form class="pcard" id="profileForm">
-        <h2>Details</h2><p class="sub">Used to pre-fill your applications.</p>
-        <div class="form-group"><label for="fFull">Full name</label><input id="fFull" type="text" autocomplete="name" /></div>
-        <div class="two">
-          <div class="form-group"><label for="fPhone">Phone</label><input id="fPhone" type="tel" autocomplete="tel" placeholder="07XX XXX XXX" /></div>
-          <div class="form-group"><label for="fWa">WhatsApp</label><input id="fWa" type="tel" placeholder="07XX XXX XXX" /></div>
+        <div class="form-group"><label for="profileCounty">County of residence</label><input id="profileCounty" placeholder="e.g. Nairobi" /></div>
+        <div class="row2">
+          <div class="form-group"><label for="profileInstitution">Institution</label><input id="profileInstitution" placeholder="e.g. Taita Taveta University" /></div>
+          <div class="form-group"><label for="profileCourse">Course</label><input id="profileCourse" placeholder="e.g. BSc Computer Science" /></div>
         </div>
-        <div class="form-group"><label for="fCounty">County of residence</label><input id="fCounty" type="text" /></div>
-        <div class="two">
-          <div class="form-group"><label for="fInst">Institution</label><input id="fInst" type="text" /></div>
-          <div class="form-group"><label for="fCourse">Course</label><input id="fCourse" type="text" /></div>
-        </div>
-        <div class="form-group"><label for="fBio">Short bio</label><textarea id="fBio" rows="4" maxlength="500"></textarea></div>
-        <button class="btn btn-primary" id="saveBtn" type="submit">Save changes</button>
+        <div class="form-group"><label for="profileBio">About you</label><textarea id="profileBio" rows="3" placeholder="Career goals and skills"></textarea></div>
+        <button type="submit" class="btn btn-primary" id="saveProfileBtn">Save changes</button>
       </form>
-
       <div class="pcard">
-        <h2>CV / Resume</h2><p class="sub">Required to apply. PDF or Word, up to 5 MB.</p>
-        <div class="cv"><i data-lucide="file-text" class="icon"></i>
-          <div class="grow"><b id="cvName">No CV uploaded</b><small id="cvHint">Add one to start applying</small></div>
-          <a class="btn btn-ghost btn-sm hidden" id="cvView" target="_blank" rel="noopener">View</a>
-          <button class="btn btn-ghost btn-sm" id="cvUploadBtn" type="button">Upload</button>
-          <button class="btn btn-ghost btn-sm hidden" id="cvRemoveBtn" type="button" style="color:var(--red)">Remove</button>
+        <h2>Your CV</h2>
+        <div class="cv">
+          <i data-lucide="file-text" class="icon"></i><div class="grow" id="resumeStatus"></div>
+          <label class="btn btn-ghost btn-sm" for="profileResume"><i data-lucide="upload" class="icon"></i> <span id="uploadLbl">Upload</span></label>
+          <input type="file" id="profileResume" accept=".pdf,.doc,.docx" class="hidden" />
+          <button type="button" id="deleteCvBtn" class="btn btn-danger btn-sm hidden"><i data-lucide="trash-2" class="icon"></i> Remove</button>
         </div>
-        <input type="file" id="cvFile" accept=".pdf,.doc,.docx" hidden />
+        <small style="color:var(--mute)">PDF, DOC or DOCX, up to 30 MB.</small>
       </div>
     </section>
 
-    <section class="panel hidden" id="tab-applications"><div class="pcard" id="appsList"><p class="sub">Loading…</p></div></section>
+    <section id="tab-applications" class="hidden"><div id="applicationsList"></div></section>
 
-    <section class="panel hidden" id="tab-settings">
-      <form class="pcard" id="pwForm">
-        <h2>Change password</h2><p class="sub">Use at least 6 characters.</p>
-        <div class="form-group"><label for="pw1">New password</label><input id="pw1" type="password" minlength="6" required autocomplete="new-password" /></div>
-        <div class="form-group"><label for="pw2">Confirm password</label><input id="pw2" type="password" minlength="6" required autocomplete="new-password" /></div>
-        <button class="btn btn-primary" id="pwBtn" type="submit">Update password</button>
+    <section id="tab-settings" class="hidden">
+      <form id="pwForm" class="pcard">
+        <h2>Change password</h2>
+        <div class="form-group"><label for="newPw">New password</label><input id="newPw" type="password" minlength="6" required autocomplete="new-password" /></div>
+        <div class="form-group"><label for="newPw2">Confirm new password</label><input id="newPw2" type="password" minlength="6" required autocomplete="new-password" /></div>
+        <button type="submit" class="btn btn-primary" id="pwBtn">Update password</button>
       </form>
-      <div class="pcard"><h2>Session</h2><p class="sub">Sign out of Nia on this device.</p><button class="btn btn-ghost" id="logoutBtn2" type="button"><i data-lucide="log-out" class="icon"></i> Sign out</button></div>
+      <div class="pcard"><h2>Session</h2><button class="btn btn-ghost" id="logoutBtn2"><i data-lucide="log-out" class="icon"></i> Sign out</button></div>
     </section>
   </main>
+
+  <div id="avatarModal" class="modal-overlay hidden" role="dialog" aria-modal="true"><div class="modal sheet">
+    <button class="close-btn" id="avClose" aria-label="Close"><i data-lucide="x" class="icon"></i></button>
+    <h2>Profile photo</h2><p class="sub">Upload your own or pick an avatar.</p>
+    <label class="btn btn-primary" for="avFile" style="width:100%"><i data-lucide="camera" class="icon"></i> Upload a photo</label>
+    <input type="file" id="avFile" accept="image/png,image/jpeg,image/webp" class="hidden" />
+    <small style="color:var(--mute);display:block;margin-top:.4rem">PNG, JPG or WebP, up to 2 MB.</small>
+    <div class="av-grid" id="avGrid"></div>
+  </div></div>
+
+  <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true"><div class="modal sheet">
+    <h2>Remove your CV?</h2><p class="sub">You will need to upload a CV again before applying.</p>
+    <button class="btn btn-danger" id="confirmYes" style="width:100%">Remove CV</button>
+    <button class="btn btn-ghost" id="confirmNo">Cancel</button>
+  </div></div>
 
   <script src="profile.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
