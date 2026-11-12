@@ -44,6 +44,7 @@ button,input{font:inherit;color:inherit}
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:.25rem;padding:.25rem;background:var(--soft);border:1px solid var(--line);border-radius:10px;margin-bottom:1.25rem}
 .tab-btn{padding:.55rem;border:0;border-radius:8px;background:transparent;font-weight:600;font-size:.9rem;color:var(--mute);cursor:pointer}
 .tab-btn.active{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.consent{display:flex;gap:.6rem;align-items:flex-start;font-size:.82rem;color:var(--ink-2);margin:.25rem 0 .75rem}.consent input{margin-top:.2rem;accent-color:var(--green);width:16px;height:16px;flex:none}.consent a{text-decoration:underline;color:var(--green-ink)}
 .forgot{display:block;text-align:right;font-size:.82rem;color:var(--mute);text-decoration:underline;margin:-.25rem 0 .5rem}
 .otp-title{font-size:1.2rem;text-align:center}
 .otp-desc{text-align:center;color:var(--mute);font-size:.9rem;margin:.35rem 0 1.25rem}

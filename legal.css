@@ -1,0 +1,29 @@
+body{background:#fff}
+.lg-top{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.lg-in{max-width:1000px;margin:0 auto;padding:0 1rem;height:64px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.lg-brand img{width:38px;height:38px;display:block}
+.lg-in nav{display:flex;align-items:center;gap:1.25rem;font-size:.9rem;font-weight:500;color:var(--ink-2)}
+.lg-in nav a:hover{color:var(--ink)}.lg-in nav a.cur{color:var(--ink);font-weight:700}
+.lg-in nav .btn{padding:.45rem .85rem;font-size:.85rem;color:var(--ink)}
+.lg-wrap{max-width:1000px;margin:0 auto;padding:2.5rem 1rem 3rem;display:grid;grid-template-columns:210px 1fr;gap:3rem;align-items:start}
+.toc{position:sticky;top:88px;font-size:.85rem;display:grid;gap:.1rem}
+.toc b{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-bottom:.5rem}
+.toc a{padding:.35rem .6rem;border-left:2px solid var(--line);color:var(--ink-2)}
+.toc a:hover,.toc a.on{border-color:var(--green);color:var(--ink)}
+.doc{max-width:700px}
+.doc h1{font-size:clamp(1.9rem,4vw,2.5rem);letter-spacing:-.03em;line-height:1.1}
+.doc .meta{color:var(--mute);font-size:.88rem;margin:.6rem 0 1.5rem}
+.doc .short{background:var(--green-50);border:1px solid #cfe9d6;border-radius:14px;padding:1.1rem 1.25rem;margin-bottom:2rem;font-size:.95rem}
+.doc .short b{display:block;margin-bottom:.3rem;color:var(--green-ink)}
+.doc h2{font-size:1.25rem;letter-spacing:-.02em;margin:2.25rem 0 .6rem;scroll-margin-top:84px}
+.doc p,.doc li{color:var(--ink-2);font-size:.98rem;margin-bottom:.7rem}
+.doc ul{padding-left:1.25rem;margin-bottom:.7rem}.doc li{margin-bottom:.35rem}
+.doc a{color:var(--green-ink);text-decoration:underline}
+.doc table{width:100%;border-collapse:collapse;font-size:.9rem;margin:.5rem 0 1rem}
+.doc th,.doc td{text-align:left;padding:.6rem .7rem;border-bottom:1px solid var(--line);vertical-align:top}.doc th{color:var(--mute);font-weight:600;font-size:.8rem}
+mark.ph{background:#fef08a;color:#000;padding:0 .25rem;border-radius:4px}
+.lg-foot{border-top:1px solid var(--line);padding:1.5rem 1rem;color:var(--mute);font-size:.85rem}
+.lg-foot div{max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.lg-foot img{width:28px;height:28px}.lg-foot a{text-decoration:underline}
+@media (max-width:860px){.lg-wrap{grid-template-columns:1fr;gap:0;padding-top:1.5rem}.toc{display:none}.lg-in nav a:not(.btn){display:none}}
+@media print{.lg-top,.toc,.lg-foot nav{display:none}.lg-wrap{display:block;padding:0}.doc{max-width:none}.doc h2{break-after:avoid}.doc a{color:#000;text-decoration:none}mark.ph{background:none}}
