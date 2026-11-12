@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
   let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
   if (!isAdmin && ["fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
@@ -103,15 +103,17 @@ async function applications() {
   if (a.error) throw a.error; const ids = [...new Set(a.data.map((x) => x.user_id).filter(Boolean))];
   const pr = ids.length ? (await sb.from("profiles").select("id,full_name,phone,whatsapp,county,institution,course,resume_url").in("id", ids)).data || [] : [];
   const P = Object.fromEntries(pr.map((x) => [x.id, x])); let list = a.data;
+  let lim = 25;
   const draw = () => {
     const fo = $("fOpp").value, fs = $("fSt").value, q = $("fQ").value.toLowerCase();
     list = a.data.filter((x) => (!fo || x.opportunity_id === fo) && (!fs || x.status === fs) && (!q || (x.user_email + " " + (P[x.user_id]?.full_name || "")).toLowerCase().includes(q)));
-    $("appRows").innerHTML = list.map((x) => `<div class="r" data-a="${esc(x.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(P[x.user_id]?.full_name || x.user_email)}</h3><p>${esc(x.opportunities?.title || "Removed listing")} · ${dt(x.created_at)}</p></div>${badge(x.status)}<span class="ib"><i data-lucide="pencil" class="icon"></i><span>Update</span></span></div>`).join("") || empty("No applications match.");
+    $("appRows").innerHTML = (list.slice(0, lim).map((x) => `<div class="r" data-a="${esc(x.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(P[x.user_id]?.full_name || x.user_email)}</h3><p>${esc(x.opportunities?.title || "Removed listing")} · ${dt(x.created_at)}</p></div>${badge(x.status)}<span class="ib"><i data-lucide="pencil" class="icon"></i><span>Update</span></span></div>`).join("") || empty("No applications match.")) + (list.length > lim ? `<button class="btn btn-ghost" id="appMore">Show more (${list.length - lim} left)</button>` : "");
+    if ($("appMore")) $("appMore").onclick = () => { lim += 25; draw(); };
     icons();
   };
   $("view").innerHTML = head("Applicants", "Review and contact applicants.", `<button class="btn btn-ghost" id="csv"><i data-lucide="download" class="icon"></i> Export CSV</button>`) +
-    `<div class="toolbar"><input id="fQ" placeholder="Search name or email"><select id="fOpp"><option value="">All listings</option>${o.data.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join("")}</select><select id="fSt"><option value="">All statuses</option>${ST.map((s) => `<option>${s}</option>`).join("")}</select></div><div class="rows" id="appRows"></div>`;
-  ["fQ", "fOpp", "fSt"].forEach((i) => ($(i).oninput = draw)); draw();
+    `<div class="toolbar"><input id="fQ" placeholder="Search name or email"><select id="fOpp"><option value="">All listings</option>${o.data.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join("")}</select><select id="fSt"><option value="">All statuses</option>${[...ST, "withdrawn"].map((s) => `<option>${s}</option>`).join("")}</select></div><div class="rows" id="appRows"></div>`;
+  ["fQ", "fOpp", "fSt"].forEach((i) => ($(i).oninput = () => { lim = 25; draw(); })); draw();
   $("appRows").onclick = (e) => { const r = e.target.closest("[data-a]"); if (r) appDetail(list.find((x) => x.id === r.dataset.a), P[list.find((x) => x.id === r.dataset.a).user_id] || {}); };
   $("csv").onclick = () => {
     const keys = [...new Set(list.flatMap((x) => Object.keys(x.answers || {})))], q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -126,7 +128,7 @@ function appDetail(a, p) {
   openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${esc(p.full_name || a.user_email)}</h2><p class="sub">${esc(a.opportunities?.title || "")} · applied ${dt(a.created_at)}</p>
   <dl class="dl">${rows.map((r) => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("")}${Object.entries(a.answers || {}).map(([k, v]) => `<dt>${esc(label(k))}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
   ${cv ? `<button class="btn btn-ghost btn-sm" id="cvOpen"><i data-lucide="file-text" class="icon"></i> Open CV</button>` : ""}
-  <div class="form-group" style="margin-top:1rem"><label>Status</label><select id="aSt">${ST.map((s) => `<option ${a.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+  <div class="form-group" style="margin-top:1rem"><label>Status</label><select id="aSt">${(a.status === "withdrawn" ? [...ST, "withdrawn"] : ST).map((s) => `<option ${a.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
   <div class="form-group"><label>Private notes</label><textarea id="aNote" rows="3">${esc(a.admin_notes)}</textarea></div><button class="btn btn-submit" id="aSave">Save</button>`);
   $("x").onclick = closeModal;
   if (cv) $("cvOpen").onclick = async () => { const w = window.open("", "_blank"), { data, error } = await sb.storage.from("resumes").createSignedUrl(resumePath(cv), 300); if (error) { w && w.close(); return toast("Could not open CV."); } w.location = data.signedUrl; };
@@ -136,13 +138,14 @@ function appDetail(a, p) {
 /* ---------- Users ---------- */
 async function users() {
   const { data, error } = await sb.from("profiles").select("id,email,full_name,role,status,created_at,institution").order("created_at", { ascending: false }); if (error) throw error;
+  let lim = 25;
   const draw = () => {
     const q = $("uQ").value.toLowerCase(); const l = data.filter((u) => !q || ((u.full_name || "") + u.email).toLowerCase().includes(q));
-    $("uRows").innerHTML = l.map((u) => `<div class="r"><div class="grow"><h3>${esc(u.full_name || u.email)}</h3><p>${esc(u.email)} · joined ${dt(u.created_at)}${u.institution ? " · " + esc(u.institution) : ""}</p></div>${u.role !== "student" ? badge(u.role).replace("b-" + u.role, "b-published") : ""}${badge(u.status || "active")}
-      ${isAdmin && u.role !== "admin" && u.id !== me.id ? `<div class="acts"><button class="ib" data-m="${esc(u.id)}" title="${u.role === "moderator" ? "Remove moderator" : "Make moderator"}"><i data-lucide="${u.role === "moderator" ? "shield-off" : "shield"}" class="icon"></i><span>${u.role === "moderator" ? "Remove moderator" : "Make moderator"}</span></button><button class="ib" data-b="${esc(u.id)}" title="${u.status === "banned" ? "Unban" : "Ban"}"><i data-lucide="${u.status === "banned" ? "user-check" : "ban"}" class="icon"></i><span>${u.status === "banned" ? "Unban" : "Ban"}</span></button><button class="ib d" data-x="${esc(u.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i><span>Delete</span></button></div>` : ""}</div>`).join("") || empty("No users found."); icons();
+    $("uRows").innerHTML = (l.slice(0, lim).map((u) => `<div class="r"><div class="grow"><h3>${esc(u.full_name || u.email)}</h3><p>${esc(u.email)} · joined ${dt(u.created_at)}${u.institution ? " · " + esc(u.institution) : ""}</p></div>${u.role !== "student" ? badge(u.role).replace("b-" + u.role, "b-published") : ""}${badge(u.status || "active")}
+      ${isAdmin && u.role !== "admin" && u.id !== me.id ? `<div class="acts"><button class="ib" data-m="${esc(u.id)}" title="${u.role === "moderator" ? "Remove moderator" : "Make moderator"}"><i data-lucide="${u.role === "moderator" ? "shield-off" : "shield"}" class="icon"></i><span>${u.role === "moderator" ? "Remove moderator" : "Make moderator"}</span></button><button class="ib" data-b="${esc(u.id)}" title="${u.status === "banned" ? "Unban" : "Ban"}"><i data-lucide="${u.status === "banned" ? "user-check" : "ban"}" class="icon"></i><span>${u.status === "banned" ? "Unban" : "Ban"}</span></button><button class="ib d" data-x="${esc(u.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i><span>Delete</span></button></div>` : ""}</div>`).join("") || empty("No users found.")) + (l.length > lim ? `<button class="btn btn-ghost" id="uMore">Show more (${l.length - lim} left)</button>` : ""); icons(); if ($("uMore")) $("uMore").onclick = () => { lim += 25; draw(); };
   };
   $("view").innerHTML = head("Users", data.length + " registered accounts.") + `<div class="toolbar"><input id="uQ" placeholder="Search name or email"></div><div class="rows" id="uRows"></div>`;
-  $("uQ").oninput = draw; draw();
+  $("uQ").oninput = () => { lim = 25; draw(); }; draw();
   $("uRows").onclick = async (e) => {
     const b = e.target.closest("button"); if (!b) return; const u = data.find((x) => x.id === (b.dataset.b || b.dataset.x || b.dataset.m));
     if (b.dataset.m) { const nr = u.role === "moderator" ? "student" : "moderator"; const { error } = await sb.from("profiles").update({ role: nr }).eq("id", u.id); if (error) return toast(error.message); await log("user.role", "user", u.id, { email: u.email, role: nr }); toast("Role set to " + nr + "."); return route(); }
@@ -217,5 +220,31 @@ function fieldForm(f = {}) {
     const { error } = f.key ? await sb.from("application_fields").update(row).eq("key", f.key) : await sb.from("application_fields").insert([{ key: slug(row.label), ...row }]);
     if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.code === "23505" ? "A detail with that name already exists." : error.message; return; }
     await log(f.key ? "field.update" : "field.create", "field", f.key || slug(row.label), { label: row.label }); closeModal(); toast("Saved."); route();
+  };
+}
+
+/* ---------- Reports ---------- */
+const REASONS = { scam: "Looks like a scam", asks_for_payment: "Asks for payment", misleading: "Misleading or inaccurate", expired: "Already closed or expired", other: "Something else" };
+async function reportsView() {
+  const { data, error } = await sb.from("listing_reports").select("*,opportunities(id,title,company,status)").order("created_at", { ascending: false }).limit(300); if (error) throw error;
+  const ids = [...new Set(data.map((x) => x.reporter_id))];
+  const pr = ids.length ? (await sb.from("profiles").select("id,email,full_name").in("id", ids)).data || [] : []; const P = Object.fromEntries(pr.map((x) => [x.id, x]));
+  const RST = ["open", "reviewing", "resolved", "dismissed"];
+  $("view").innerHTML = head("Reports", "Listings students have flagged.") + `<div class="toolbar"><select id="rSt"><option value="">All reports</option>${RST.map((s) => `<option ${s === "open" ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="rows" id="rRows"></div>`;
+  const draw = () => {
+    const f = $("rSt").value, l = data.filter((x) => !f || x.status === f);
+    $("rRows").innerHTML = l.map((x) => `<div class="r" data-r="${esc(x.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(REASONS[x.reason] || x.reason)}: ${esc(x.opportunities?.title || "Removed listing")}</h3><p>${esc(P[x.reporter_id]?.email || "unknown")} · ${dt(x.created_at)}</p></div>${badge(x.status)}<span class="ib"><i data-lucide="eye" class="icon"></i><span>Review</span></span></div>`).join("") || empty("No reports here."); icons();
+  };
+  $("rSt").onchange = draw; draw();
+  $("rRows").onclick = (e) => {
+    const row = e.target.closest("[data-r]"); if (!row) return; const x = data.find((y) => y.id === row.dataset.r), o = x.opportunities || {};
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${esc(REASONS[x.reason] || x.reason)}</h2><p class="sub">${esc(o.title || "Removed listing")} ${o.company ? "· " + esc(o.company) : ""}</p>
+    <dl class="dl"><dt>Reported by</dt><dd>${esc(P[x.reporter_id]?.email || "unknown")}</dd><dt>Date</dt><dd>${dt(x.created_at)}</dd><dt>Details</dt><dd>${esc(x.details || "None given")}</dd><dt>Listing status</dt><dd>${esc(o.status || "removed")}</dd></dl>
+    <div class="form-group"><label>Report status</label><select id="rNew">${RST.map((s) => `<option ${x.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+    <div class="form-group"><label>Private notes</label><textarea id="rNote" rows="3">${esc(x.admin_notes)}</textarea></div>
+    <button class="btn btn-submit" id="rSave">Save</button>${o.id && o.status === "published" ? `<button class="btn btn-ghost" id="rClose" style="width:100%;margin-top:.5rem"><i data-lucide="lock" class="icon"></i> Close this listing</button>` : ""}`);
+    $("x").onclick = closeModal;
+    $("rSave").onclick = async () => { const { error } = await sb.from("listing_reports").update({ status: $("rNew").value, admin_notes: $("rNote").value.trim() || null }).eq("id", x.id); if (error) return toast(error.message); await log("report." + $("rNew").value, "report", x.id, { listing: o.title }); closeModal(); toast("Saved."); route(); };
+    if ($("rClose")) $("rClose").onclick = async () => { const { error } = await sb.from("opportunities").update({ status: "closed" }).eq("id", o.id); if (error) return toast(error.message); await log("opportunity.closed", "opportunity", o.id, { title: o.title, via: "report" }); closeModal(); toast("Listing closed."); route(); };
   };
 }

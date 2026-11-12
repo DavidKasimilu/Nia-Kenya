@@ -43,6 +43,7 @@
     <div class="chips" id="chips"></div>
     <div class="count" id="count"></div>
     <div class="feed" id="feed"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+    <div class="more"><button id="moreBtn" class="btn btn-ghost hidden">Load more</button></div>
   </main>
 
   <div id="applyModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
@@ -54,6 +55,20 @@
       <div id="applyMsg" class="message hidden"></div>
       <form id="applyForm"><div id="applyFields"></div><button type="submit" class="btn btn-submit" id="applySubmit">Submit application</button></form>
       <button class="btn btn-ghost" id="applyCancel" type="button">Cancel</button>
+    </div>
+  </div>
+
+  <div id="reportModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal sheet">
+      <button class="close-btn" id="reportClose" aria-label="Close"><i data-lucide="x" class="icon"></i></button>
+      <h2>Report this listing</h2><p class="sub" id="reportFor"></p>
+      <div id="reportMsg" class="message hidden"></div>
+      <form id="reportForm">
+        <div class="form-group"><label for="reportReason">What is wrong?</label><select id="reportReason" required></select></div>
+        <div class="form-group"><label for="reportDetails">Details (optional)</label><textarea id="reportDetails" rows="3" maxlength="500" placeholder="Tell us what you noticed"></textarea></div>
+        <button type="submit" class="btn btn-submit" id="reportSubmit">Send report</button>
+      </form>
+      <button class="btn btn-ghost" id="reportCancel" type="button">Cancel</button>
     </div>
   </div>
 

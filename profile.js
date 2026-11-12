@@ -4,7 +4,7 @@ const sb = window.supabase ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY,
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icons = () => window.__icons && window.__icons();
-const STATUS = { new: "Submitted", reviewing: "In review", shortlisted: "Shortlisted", contacted: "Contacted", rejected: "Not selected" };
+const STATUS = { new: "Submitted", reviewing: "In review", shortlisted: "Shortlisted", contacted: "Contacted", rejected: "Not selected", withdrawn: "Withdrawn" };
 let user, profile = {};
 
 function say(text, err) { const m = $("statusMessage"); m.textContent = text; m.className = "message " + (err ? "error" : "info"); window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -17,7 +17,7 @@ function paintAvatars() {
 }
 function showTab(t) {
   document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
-  ["profile", "applications", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
+  ["profile", "applications", "saved", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
   if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
 }
 const resumePath = (v) => (v && /^https?:/.test(v) ? pathOf(v, "resumes") : v || null);
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out;
   document.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-  showTab(["applications", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
+  showTab(["applications", "saved", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
   $("profileForm").onsubmit = saveProfile; $("pwForm").onsubmit = changePw;
   $("profileResume").onchange = uploadCv;
   $("deleteCvBtn").onclick = () => $("confirmModal").classList.remove("hidden");
@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("bigAvatar").onclick = openAvatars; $("avClose").onclick = () => $("avatarModal").classList.add("hidden");
   $("avFile").onchange = uploadAvatar;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".modal-overlay").forEach((m) => m.classList.add("hidden")); });
-  loadApplications();
+  loadApplications(); loadSaved();
 });
 
 async function saveProfile(e) {
@@ -120,7 +120,7 @@ async function loadApplications() {
   const { data, error } = await sb.from("applications").select("id,status,created_at,opportunities(title,company,location)").eq("user_id", user.id).order("created_at", { ascending: false });
   const box = $("applicationsList");
   if (error) return (box.innerHTML = `<div class="empty">Could not load applications.</div>`);
-  box.innerHTML = (data || []).length ? data.map((a) => { const o = a.opportunities || {}, s = a.status || "new"; return `<div class="app"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div class="grow"><h3>${esc(o.title || "Opportunity removed")}</h3><p>${esc(o.company || "")}${o.location ? " · " + esc(o.location) : ""} · Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="badge st-${esc(s)}">${esc(STATUS[s] || s)}</span></div>`; }).join("") : `<div class="empty">You haven't applied to anything yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
+  box.innerHTML = (data || []).length ? data.map((a) => { const o = a.opportunities || {}, s = a.status || "new"; return `<div class="app"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div class="grow"><h3>${esc(o.title || "Opportunity removed")}</h3><p>${esc(o.company || "")}${o.location ? " · " + esc(o.location) : ""} · Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="badge st-${esc(s)}">${esc(STATUS[s] || s)}</span>${["new", "reviewing"].includes(s) ? `<button class="btn btn-ghost btn-sm" data-w="${esc(a.id)}">Withdraw</button>` : ""}</div>`; }).join("") : `<div class="empty">You haven't applied to anything yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
 }
 
 async function changePw(e) {
@@ -151,5 +151,28 @@ document.addEventListener("DOMContentLoaded", () => {
     if (error) { const m = $("delMsg"); m.className = "message error"; m.textContent = error.message; b.disabled = false; b.textContent = "Delete permanently"; return; }
     try { await sb.auth.signOut(); } catch (e) {}
     location.href = "index.html";
+  };
+});
+
+/* ---------- Saved listings and withdrawing ---------- */
+async function loadSaved() {
+  const box = $("savedList");
+  const { data, error } = await sb.from("saved_listings").select("created_at,opportunities(id,title,company,location,deadline)").eq("user_id", user.id).order("created_at", { ascending: false });
+  if (error) return (box.innerHTML = `<div class="empty">Could not load saved listings.</div>`);
+  const rows = (data || []).filter((x) => x.opportunities);
+  box.innerHTML = rows.length ? rows.map((s) => { const o = s.opportunities; return `<div class="app"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div class="grow"><h3>${esc(o.title)}</h3><p>${esc(o.company)} · ${esc(o.location)}${o.deadline ? " · closes " + new Date(o.deadline).toLocaleDateString("en-KE", { day: "numeric", month: "short" }) : ""}</p></div><button class="btn btn-ghost btn-sm" data-u="${esc(o.id)}">Remove</button></div>`; }).join("") + `<a href="dashboard.html#saved" class="btn btn-primary btn-sm">Open in feed</a>` : `<div class="empty">Nothing saved yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
+}
+let wdId = null;
+document.addEventListener("DOMContentLoaded", () => {
+  $("savedList").onclick = async (e) => {
+    const b = e.target.closest("[data-u]"); if (!b) return;
+    const { error } = await sb.from("saved_listings").delete().match({ user_id: user.id, opportunity_id: b.dataset.u });
+    if (error) return say(error.message, true); loadSaved();
+  };
+  $("applicationsList").onclick = (e) => { const b = e.target.closest("[data-w]"); if (b) { wdId = b.dataset.w; $("wdModal").classList.remove("hidden"); } };
+  $("wdNo").onclick = () => $("wdModal").classList.add("hidden");
+  $("wdYes").onclick = async () => {
+    $("wdModal").classList.add("hidden"); const { error } = await sb.rpc("withdraw_application", { p_id: wdId });
+    if (error) return say(error.message, true); say("Application withdrawn."); loadApplications();
   };
 });

@@ -35,6 +35,7 @@
     <div class="ptabs" role="tablist">
       <button class="ptab active" data-tab="profile">Profile</button>
       <button class="ptab" data-tab="applications">Applications</button>
+      <button class="ptab" data-tab="saved">Saved</button>
       <button class="ptab" data-tab="settings">Settings</button>
     </div>
     <div id="statusMessage" class="message hidden" style="max-width:720px"></div>
@@ -69,6 +70,7 @@
     </section>
 
     <section id="tab-applications" class="hidden"><div id="applicationsList"></div></section>
+    <section id="tab-saved" class="hidden"><div id="savedList"></div></section>
 
     <section id="tab-settings" class="hidden">
       <form id="pwForm" class="pcard">
@@ -104,6 +106,12 @@
     <div class="form-group"><input id="delConfirm" autocomplete="off" placeholder="DELETE" /></div>
     <button class="btn btn-danger" id="delGo" style="width:100%" disabled>Delete permanently</button>
     <button class="btn btn-ghost" id="delNo">Cancel</button>
+  </div></div>
+
+  <div id="wdModal" class="modal-overlay hidden" role="dialog" aria-modal="true"><div class="modal sheet">
+    <h2>Withdraw application?</h2><p class="sub">The team will see it as withdrawn. You will not be able to apply to this listing again.</p>
+    <button class="btn btn-danger" id="wdYes" style="width:100%">Withdraw</button>
+    <button class="btn btn-ghost" id="wdNo">Keep my application</button>
   </div></div>
 
   <script src="profile.js"></script>
