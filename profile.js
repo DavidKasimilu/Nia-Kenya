@@ -17,7 +17,7 @@ function paintAvatars() {
 }
 function showTab(t) {
   document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
-  ["profile", "applications", "saved", "subscription", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
+  ["profile", "applications", "saved", "subscription", "affiliate", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
   if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
 }
 const resumePath = (v) => (v && /^https?:/.test(v) ? pathOf(v, "resumes") : v || null);
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out;
   document.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-  showTab(["applications", "saved", "subscription", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
+  showTab(["applications", "saved", "subscription", "affiliate", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
   $("profileForm").onsubmit = saveProfile; $("pwForm").onsubmit = changePw;
   $("profileResume").onchange = uploadCv;
   $("deleteCvBtn").onclick = () => $("confirmModal").classList.remove("hidden");
@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("bigAvatar").onclick = openAvatars; $("avClose").onclick = () => $("avatarModal").classList.add("hidden");
   $("avFile").onchange = uploadAvatar;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".modal-overlay").forEach((m) => m.classList.add("hidden")); });
-  loadApplications(); loadSaved(); loadSub();
+  loadApplications(); loadSaved(); loadSub(); loadAff();
 });
 
 async function saveProfile(e) {
@@ -210,3 +210,34 @@ async function loadSub() {
 const TYPE_ICON = { job: "briefcase", internship: "graduation-cap", attachment: "building-2" };
 function coHtml(o) { return o.logo_url ? `<div class="co lg"><img src="${esc(o.logo_url)}" alt="" onerror="this.remove()"></div>` : `<div class="co ty"><i data-lucide="${TYPE_ICON[String(o.type || "").toLowerCase()] || "briefcase"}" class="icon"></i></div>`; }
 document.addEventListener("DOMContentLoaded", () => ["applicationsList", "savedList"].forEach((id) => new MutationObserver(() => icons()).observe($(id), { childList: true })));
+
+/* ---------- Affiliate program ---------- */
+async function loadAff() {
+  const box = $("affBox"), kes = (n) => "KES " + Number(n || 0).toLocaleString("en-KE");
+  if (["admin", "moderator"].includes(profile.role)) return (box.innerHTML = `<div class="pcard"><h2>Affiliate program</h2><p style="color:var(--ink-2)">Staff accounts cannot join the affiliate program.</p></div>`);
+  const [{ data: s, error }, dr] = await Promise.all([sb.rpc("my_affiliate_stats"), sb.from("app_settings").select("value").eq("key", "affiliate_default_rate").maybeSingle()]);
+  if (error) return (box.innerHTML = `<div class="empty">Could not load the affiliate program.</div>`);
+  const msg = (t, err) => { const m = $("affMsg"); if (m) { m.className = "message " + (err ? "error" : "info"); m.textContent = t; } };
+  if (!s.joined) {
+    const rate = Number(dr.data?.value ?? 20);
+    box.innerHTML = `<div class="pcard"><h2>Earn with Nia</h2><p style="color:var(--ink-2);font-size:.95rem;margin-bottom:1rem">Share your personal link. When someone joins through it and subscribes, you earn <b>${rate}%</b> of what they pay. Paid to your M-Pesa.</p><div id="affMsg" class="message hidden"></div><button class="btn btn-green" id="affJoin">Join the affiliate program</button></div>`;
+    $("affJoin").onclick = async () => { $("affJoin").disabled = true; const r = await sb.rpc("join_affiliate_program"); if (r.error) { msg(r.error.message, true); $("affJoin").disabled = false; return; } loadAff(); };
+    return;
+  }
+  const link = new URL("index.html?ref=" + s.code, location.href).href;
+  const { data: cm } = await sb.from("commissions").select("amount_kes,status,created_at,rate").eq("affiliate_id", user.id).order("created_at", { ascending: false }).limit(30);
+  const stat = (l, v) => `<div style="border:1px solid var(--line);border-radius:12px;padding:.9rem"><div style="font-size:.78rem;color:var(--mute)">${l}</div><div style="font-size:1.35rem;font-weight:800;letter-spacing:-.02em">${v}</div></div>`;
+  box.innerHTML = `<div class="pcard"><h2>Your referral link</h2>
+      ${s.status === "suspended" ? `<div class="message error">Your affiliate account is suspended. Contact support.</div>` : ""}
+      <div id="affMsg" class="message hidden"></div>
+      <div class="form-group"><label>Code: <b>${esc(s.code)}</b> · You earn <b>${Number(s.rate)}%</b></label><input id="affLink" value="${esc(link)}" readonly /></div>
+      <button class="btn btn-ghost btn-sm" id="affCopy"><i data-lucide="copy" class="icon"></i> Copy link</button>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent("Find jobs, internships and attachments in Kenya on Nia: " + link)}"><i data-lucide="share-2" class="icon"></i> Share on WhatsApp</a></div>
+    <div class="pcard"><h2>Your earnings</h2><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.7rem">${stat("People who joined", s.referrals)}${stat("Currently subscribed", s.subscribed)}${stat("Pending payout", kes(s.pending))}${stat("Paid out", kes(s.paid))}</div></div>
+    <div class="pcard"><h2>Payout number (M-Pesa)</h2><div class="form-group"><input id="affPhone" type="tel" placeholder="+254 712 345 678" value="${esc(s.payout_phone || "")}" /></div><button class="btn btn-primary btn-sm" id="affPhoneSave">Save number</button>
+      <p style="color:var(--mute);font-size:.82rem;margin-top:.6rem">Nia sends your commission to this number and marks it as paid here.</p></div>
+    <div class="pcard"><h2>Commission history</h2>${(cm || []).length ? cm.map((c) => `<div class="app" style="padding:.7rem 1rem"><div class="grow"><h3>${kes(c.amount_kes)}</h3><p>${new Date(c.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })} · ${Number(c.rate)}%</p></div><span class="badge ${c.status === "paid" ? "" : "gray"}">${c.status === "paid" ? "Paid" : c.status === "void" ? "Void" : "Pending"}</span></div>`).join("") : `<p style="color:var(--mute);font-size:.9rem">No commissions yet. Share your link to get started.</p>`}</div>`;
+  $("affCopy").onclick = async () => { try { await navigator.clipboard.writeText(link); msg("Link copied."); } catch (e) { $("affLink").select(); msg("Press and hold the link to copy it."); } };
+  $("affPhoneSave").onclick = async () => { const r = await sb.rpc("set_payout_phone", { p_phone: $("affPhone").value }); if (r.error) return msg(r.error.message, true); msg("Payout number saved."); };
+  icons();
+}

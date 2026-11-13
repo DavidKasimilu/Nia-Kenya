@@ -22,8 +22,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return (location.href = "index.html");
   state.user = session.user;
-  const { data: p } = await sb.from("profiles").select("status, role, resume_url, full_name, phone, whatsapp, county, avatar_url").eq("id", session.user.id).maybeSingle();
+  const { data: p } = await sb.from("profiles").select("status, role, resume_url, full_name, phone, whatsapp, county, avatar_url, referred_by").eq("id", session.user.id).maybeSingle();
   if (p?.status === "banned") { await sb.auth.signOut(); alert("Your account has been suspended. Please contact administration."); return (location.href = "index.html"); }
+  if (!p?.referred_by) claimReferral();
   state.profile = p || {}; state.staff = ["admin", "moderator"].includes(p?.role);
 
   $("avatarBtn").innerHTML = avatarHtml(p, session.user.email);
@@ -161,4 +162,12 @@ async function startPayment() {
     onError: payErr,
     onDone: () => { state.subActive = true; $("payModal").classList.add("hidden"); toast("You are subscribed. Welcome!"); openApply(state.current.id); },
   });
+}
+
+async function claimReferral() {
+  try {
+    const raw = localStorage.getItem("nia_ref"); if (!raw) return; localStorage.removeItem("nia_ref");
+    const r = JSON.parse(raw); if (!r.c || Date.now() - r.t > 30 * 864e5) return;
+    await sb.rpc("claim_referral", { p_code: r.c });
+  } catch (e) {}
 }

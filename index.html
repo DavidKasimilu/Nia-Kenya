@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
   <link rel="stylesheet" href="base.css" />
   <link rel="stylesheet" href="landing.css" />
+  <script src="ref.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -183,7 +184,11 @@
       const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       const ago = (iso) => { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "1 day ago" : d < 30 ? d + " days ago" : new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short" }); };
       let rows = [];
-      try { if (typeof supabaseClient !== "undefined") { const r = await supabaseClient.rpc("public_latest_listings", { p_limit: 3 }); rows = r.data || []; } } catch (e) {}
+      try {
+        const pub = window.supabase.createClient("https://nia-gateway.davidkasimilu71.workers.dev", "cf-worker-edge-managed", { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+        const r = await pub.rpc("public_latest_listings", { p_limit: 3 });
+        if (r.error) console.warn("Latest listings:", r.error.message); else rows = r.data || [];
+      } catch (e) { console.warn("Latest listings:", e); }
       box.innerHTML = rows.length ? rows.map((o) => `<button type="button" class="pv-card"><div class="pv-av">${o.logo_url ? `<img src="${esc(o.logo_url)}" alt="" onerror="this.remove()">` : `<i data-lucide="${ICON[String(o.type).toLowerCase()] || "briefcase"}" class="icon"></i>`}</div><div class="pv-t"><h4>${esc(o.title)}</h4><p>${esc(o.company)}</p><p><i data-lucide="map-pin" class="icon"></i> ${esc(o.location)} <i data-lucide="clock" class="icon"></i> ${ago(o.created_at)}</p></div><span class="badge">${esc(o.type)}</span></button>`).join("") : `<div class="pv-empty">New opportunities are added regularly. Create a free account to see them as they appear.</div>`;
       if (window.lucide) lucide.createIcons();
       box.addEventListener("click", (e) => { if (e.target.closest(".pv-card")) { $("openModalBtn").click(); $("tabSignUp").click(); } });

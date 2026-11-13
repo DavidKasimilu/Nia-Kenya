@@ -38,10 +38,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
   let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
-  if (!isAdmin && ["billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
+  if (!isAdmin && ["affiliates", "billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
   document.querySelectorAll("#nav a[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === v));
   $("view").onclick = null; $("view").innerHTML = empty("Loading…");
   try { await views[v](); } catch (e) { $("view").innerHTML = empty("Something went wrong: " + e.message); }
@@ -284,4 +284,43 @@ async function billingView() {
   };
   $("planSave").onclick = async () => { const v = parseInt($("planAmt").value, 10); if (!(v > 0)) return toast("Enter a valid price."); const { error } = await sb.from("plans").update({ amount_kes: v }).eq("code", "monthly"); if (error) return toast(error.message); await log("plan.price", "plan", "monthly", { amount_kes: v }); toast("Price updated."); };
   $("grantForm").onsubmit = async (e) => { e.preventDefault(); const { error } = await sb.rpc("admin_grant_subscription", { p_email: $("gEmail").value.trim(), p_days: parseInt($("gDays").value, 10), p_note: $("gNote").value.trim() || null }); if (error) return toast(error.message); toast("Membership granted."); route(); };
+}
+
+/* ---------- Affiliates ---------- */
+async function affiliatesView() {
+  const [af, cm, rf, st] = await Promise.all([
+    sb.from("affiliates").select("*").order("created_at", { ascending: false }).limit(500),
+    sb.from("commissions").select("affiliate_id,amount_kes,status").limit(10000),
+    sb.from("profiles").select("referred_by").not("referred_by", "is", null).limit(10000),
+    sb.from("app_settings").select("key,value").in("key", ["affiliate_default_rate", "affiliate_mode"]),
+  ]);
+  if (af.error) throw af.error;
+  const S = Object.fromEntries((st.data || []).map((x) => [x.key, x.value])), rate = Number(S.affiliate_default_rate ?? 20), mode = S.affiliate_mode || "every";
+  const ids = (af.data || []).map((a) => a.user_id), pr = ids.length ? (await sb.from("profiles").select("id,email,full_name").in("id", ids)).data || [] : [], P = Object.fromEntries(pr.map((x) => [x.id, x]));
+  const T = {}; (cm.data || []).forEach((c) => { const t = (T[c.affiliate_id] ||= { pending: 0, paid: 0 }); if (c.status === "pending") t.pending += Number(c.amount_kes); if (c.status === "paid") t.paid += Number(c.amount_kes); });
+  const R = {}; (rf.data || []).forEach((x) => (R[x.referred_by] = (R[x.referred_by] || 0) + 1));
+  const kes = (n) => "KES " + Number(n || 0).toLocaleString("en-KE");
+  $("view").innerHTML = head("Affiliates", "People earning commission for referrals.") +
+    `<div class="panel" style="margin-bottom:1rem"><h2>Program settings</h2><div class="toolbar"><label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem">Default rate (%) <input type="number" id="dRate" min="20" max="100" value="${rate}" style="width:90px;flex:none;min-width:0"></label>
+      <select id="dMode"><option value="every" ${mode === "every" ? "selected" : ""}>Commission on every payment</option><option value="first" ${mode === "first" ? "selected" : ""}>Commission on first payment only</option></select><button class="btn btn-primary" id="dSave">Save</button></div>
+      <small style="color:var(--mute)">The rate can never go below 20%. A new rate applies to affiliates who join afterwards. Change an individual affiliate's rate below.</small></div>
+    <div class="rows" id="afRows">${(af.data || []).map((a) => { const t = T[a.user_id] || { pending: 0, paid: 0 }, p = P[a.user_id] || {};
+      return `<div class="r"><div class="grow"><h3>${esc(p.full_name || p.email || "Unknown")} <span style="color:var(--mute);font-weight:500">${esc(a.code)}</span></h3><p>${esc(p.email || "")} · ${R[a.user_id] || 0} referred · pending ${kes(t.pending)} · paid ${kes(t.paid)}${a.payout_phone ? " · M-Pesa " + esc(a.payout_phone) : ""}</p></div>${badge(a.status === "active" ? "active" : "banned").replace("banned", "suspended")}${a.rate}%
+      <div class="acts"><button class="ib" data-rate="${esc(a.user_id)}"><i data-lucide="percent" class="icon"></i><span>Rate</span></button>${t.pending > 0 ? `<button class="ib" data-pay="${esc(a.user_id)}"><i data-lucide="banknote" class="icon"></i><span>Mark paid</span></button>` : ""}<button class="ib" data-sus="${esc(a.user_id)}"><i data-lucide="${a.status === "active" ? "pause" : "play"}" class="icon"></i><span>${a.status === "active" ? "Suspend" : "Activate"}</span></button></div></div>`; }).join("") || empty("No affiliates yet.")}</div>`;
+  $("dSave").onclick = async () => {
+    for (const [key, value] of [["affiliate_default_rate", Number($("dRate").value)], ["affiliate_mode", $("dMode").value]]) { const { error } = await sb.from("app_settings").upsert({ key, value, updated_at: new Date().toISOString() }); if (error) return toast(error.message); }
+    await log("affiliate.settings", "settings", "affiliate", { rate: $("dRate").value, mode: $("dMode").value }); toast("Saved.");
+  };
+  $("afRows").onclick = async (e) => {
+    const b = e.target.closest("button"); if (!b) return; const id = b.dataset.rate || b.dataset.pay || b.dataset.sus, a = af.data.find((x) => x.user_id === id), p = P[id] || {};
+    if (b.dataset.sus) { const { error } = await sb.from("affiliates").update({ status: a.status === "active" ? "suspended" : "active" }).eq("user_id", id); if (error) return toast(error.message); await log("affiliate." + (a.status === "active" ? "suspend" : "activate"), "user", id); return route(); }
+    if (b.dataset.rate) {
+      openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>Commission rate</h2><p class="sub">${esc(p.email || "")} (minimum 20%)</p><div class="form-group"><label>Rate (%)</label><input id="rIn" type="number" min="20" max="100" value="${a.rate}"></div><button class="btn btn-submit" id="rGo">Save rate</button>`);
+      $("x").onclick = closeModal; $("rGo").onclick = async () => { const { error } = await sb.from("affiliates").update({ rate: Number($("rIn").value) }).eq("user_id", id); if (error) return toast(error.message.includes("check") ? "Rate must be between 20 and 100." : error.message); await log("affiliate.rate", "user", id, { rate: $("rIn").value }); closeModal(); route(); };
+      return;
+    }
+    const t = T[id] || { pending: 0 };
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>Mark as paid</h2><p class="sub">Send ${kes(t.pending)} to ${esc(a.payout_phone || "the affiliate (no number saved)")} by M-Pesa first, then enter the reference.</p><div class="form-group"><label>M-Pesa reference</label><input id="pRef" placeholder="e.g. SKL2ABC123"></div><button class="btn btn-submit" id="pGo">Mark ${kes(t.pending)} as paid</button>`);
+    $("x").onclick = closeModal; $("pGo").onclick = async () => { const { error } = await sb.rpc("admin_mark_commissions_paid", { p_affiliate: id, p_ref: $("pRef").value }); if (error) return toast(error.message); closeModal(); toast("Marked as paid."); route(); };
+  };
 }
