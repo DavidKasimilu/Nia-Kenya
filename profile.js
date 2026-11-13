@@ -117,10 +117,10 @@ async function uploadAvatar() {
 }
 
 async function loadApplications() {
-  const { data, error } = await sb.from("applications").select("id,status,created_at,opportunities(title,company,location)").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await sb.from("applications").select("id,status,created_at,opportunities(title,company,location,type,logo_url)").eq("user_id", user.id).order("created_at", { ascending: false });
   const box = $("applicationsList");
   if (error) return (box.innerHTML = `<div class="empty">Could not load applications.</div>`);
-  box.innerHTML = (data || []).length ? data.map((a) => { const o = a.opportunities || {}, s = a.status || "new"; return `<div class="app"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div class="grow"><h3>${esc(o.title || "Opportunity removed")}</h3><p>${esc(o.company || "")}${o.location ? " · " + esc(o.location) : ""} · Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="badge st-${esc(s)}">${esc(STATUS[s] || s)}</span>${["new", "reviewing"].includes(s) ? `<button class="btn btn-ghost btn-sm" data-w="${esc(a.id)}">Withdraw</button>` : ""}</div>`; }).join("") : `<div class="empty">You haven't applied to anything yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
+  box.innerHTML = (data || []).length ? data.map((a) => { const o = a.opportunities || {}, s = a.status || "new"; return `<div class="app">${coHtml(o)}<div class="grow"><h3>${esc(o.title || "Opportunity removed")}</h3><p>${esc(o.company || "")}${o.location ? " · " + esc(o.location) : ""} · Applied ${new Date(a.created_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p></div><span class="badge st-${esc(s)}">${esc(STATUS[s] || s)}</span>${["new", "reviewing"].includes(s) ? `<button class="btn btn-ghost btn-sm" data-w="${esc(a.id)}">Withdraw</button>` : ""}</div>`; }).join("") : `<div class="empty">You haven't applied to anything yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
 }
 
 async function changePw(e) {
@@ -157,10 +157,10 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ---------- Saved listings and withdrawing ---------- */
 async function loadSaved() {
   const box = $("savedList");
-  const { data, error } = await sb.from("saved_listings").select("created_at,opportunities(id,title,company,location,deadline)").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await sb.from("saved_listings").select("created_at,opportunities(id,title,company,location,deadline,type,logo_url)").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return (box.innerHTML = `<div class="empty">Could not load saved listings.</div>`);
   const rows = (data || []).filter((x) => x.opportunities);
-  box.innerHTML = rows.length ? rows.map((s) => { const o = s.opportunities; return `<div class="app"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div class="grow"><h3>${esc(o.title)}</h3><p>${esc(o.company)} · ${esc(o.location)}${o.deadline ? " · closes " + new Date(o.deadline).toLocaleDateString("en-KE", { day: "numeric", month: "short" }) : ""}</p></div><button class="btn btn-ghost btn-sm" data-u="${esc(o.id)}">Remove</button></div>`; }).join("") + `<a href="dashboard.html#saved" class="btn btn-primary btn-sm">Open in feed</a>` : `<div class="empty">Nothing saved yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
+  box.innerHTML = rows.length ? rows.map((s) => { const o = s.opportunities; return `<div class="app">${coHtml(o)}<div class="grow"><h3>${esc(o.title)}</h3><p>${esc(o.company)} · ${esc(o.location)}${o.deadline ? " · closes " + new Date(o.deadline).toLocaleDateString("en-KE", { day: "numeric", month: "short" }) : ""}</p></div><button class="btn btn-ghost btn-sm" data-u="${esc(o.id)}">Remove</button></div>`; }).join("")  : `<div class="empty">Nothing saved yet.<br><a href="dashboard.html" style="text-decoration:underline;font-weight:600">Browse opportunities</a></div>`;
 }
 let wdId = null;
 document.addEventListener("DOMContentLoaded", () => {
@@ -206,3 +206,7 @@ async function loadSub() {
   };
   if ($("subCheck")) $("subCheck").onclick = async () => { const r = await NiaPay.recheck(sb); if (r.error) return msg(r.error.message, true); say("Payment confirmed."); loadSub(); };
 }
+
+const TYPE_ICON = { job: "briefcase", internship: "graduation-cap", attachment: "building-2" };
+function coHtml(o) { return o.logo_url ? `<div class="co lg"><img src="${esc(o.logo_url)}" alt="" onerror="this.remove()"></div>` : `<div class="co ty"><i data-lucide="${TYPE_ICON[String(o.type || "").toLowerCase()] || "briefcase"}" class="icon"></i></div>`; }
+document.addEventListener("DOMContentLoaded", () => ["applicationsList", "savedList"].forEach((id) => new MutationObserver(() => icons()).observe($(id), { childList: true })));

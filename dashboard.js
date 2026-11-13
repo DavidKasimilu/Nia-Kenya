@@ -4,12 +4,14 @@ const sb = window.supabase ? window.supabase.createClient(GATEWAY_URL, EDGE_KEY,
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icons = () => window.__icons && window.__icons();
-const TYPES = ["All", "Job", "Internship", "Attachment", "Saved"], PAGE = 12, NONE = "00000000-0000-0000-0000-000000000000";
+const TYPE_ICON = { job: "briefcase", internship: "graduation-cap", attachment: "building-2" };
+const TYPES = ["All", "Job", "Internship", "Attachment"], PAGE = 12, NONE = "00000000-0000-0000-0000-000000000000";
 const REASONS = { scam: "Looks like a scam", asks_for_payment: "Asks for payment", misleading: "Misleading or inaccurate", expired: "Already closed or expired", other: "Something else" };
 const state = { user: null, profile: null, staff: false, items: [], total: 0, applied: new Set(), saved: new Set(), fields: {}, type: "All", current: null, seq: 0, subActive: false, required: false, plan: null };
 const clean = (v) => v.replace(/[%,()*\\]/g, " ").trim();
 
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); }
+function coHtml(o) { return o.logo_url ? `<div class="co lg"><img src="${esc(o.logo_url)}" alt="" onerror="this.remove()"></div>` : `<div class="co ty"><i data-lucide="${TYPE_ICON[String(o.type || "").toLowerCase()] || "briefcase"}" class="icon"></i></div>`; }
 function ago(iso) { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "1 day ago" : d < 30 ? d + " days ago" : new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short" }); }
 function isOpen(o) { return o.status !== "closed" && (!o.deadline || new Date(o.deadline) > new Date()); }
 function avatarHtml(p, email) { const n = (p?.full_name || email || "?").trim()[0].toUpperCase(); return p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n); }
@@ -23,7 +25,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { data: p } = await sb.from("profiles").select("status, role, resume_url, full_name, phone, whatsapp, county, avatar_url").eq("id", session.user.id).maybeSingle();
   if (p?.status === "banned") { await sb.auth.signOut(); alert("Your account has been suspended. Please contact administration."); return (location.href = "index.html"); }
   state.profile = p || {}; state.staff = ["admin", "moderator"].includes(p?.role);
-  if (location.hash === "#saved") state.type = "Saved";
 
   $("avatarBtn").innerHTML = avatarHtml(p, session.user.email);
   $("menuName").textContent = p?.full_name || "Student"; $("menuEmail").textContent = session.user.email;
@@ -35,7 +36,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("chips").innerHTML = TYPES.map((t) => `<button class="chip${t === state.type ? " on" : ""}" data-t="${t}">${t === "All" ? "All" : t === "Saved" ? "Saved" : t + "s"}</button>`).join("");
   $("chips").onclick = (e) => { const b = e.target.closest(".chip"); if (!b) return; state.type = b.dataset.t; document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); loadFeed(true); };
   let t; const deb = () => { clearTimeout(t); t = setTimeout(() => loadFeed(true), 300); };
-  $("searchInput").oninput = deb; $("locationFilterInput").oninput = deb;
+  const dot = () => $("searchDot").classList.toggle("hidden", !($("searchInput").value.trim() || $("locationFilterInput").value.trim()));
+  $("searchInput").oninput = () => { dot(); deb(); }; $("locationFilterInput").oninput = () => { dot(); deb(); };
+  $("searchBtn").onclick = () => { const p = $("searchPanel"); p.classList.toggle("hidden"); $("searchBtn").setAttribute("aria-expanded", !p.classList.contains("hidden")); if (!p.classList.contains("hidden")) $("searchInput").focus(); };
+  $("searchClear").onclick = () => { $("searchInput").value = ""; $("locationFilterInput").value = ""; dot(); loadFeed(true); };
   $("moreBtn").onclick = () => loadFeed(false);
   $("feed").onclick = (e) => {
     const b = e.target.closest("[data-apply],[data-save],[data-report]"); if (!b) return;
@@ -86,7 +90,7 @@ function render() {
 function card(o) {
   const done = state.applied.has(o.id), open = isOpen(o), sv = state.saved.has(o.id);
   const btn = done ? `<span class="badge"><i data-lucide="check" class="icon"></i> Applied</span>` : open ? `<button class="btn btn-primary" data-apply="${esc(o.id)}">Apply <i data-lucide="arrow-right" class="icon"></i></button>` : `<span class="badge gray">Closed</span>`;
-  return `<article class="job"><div class="job-top"><div class="co">${esc((o.company || "?")[0].toUpperCase())}</div><div><h3>${esc(o.title)}</h3><div class="company">${esc(o.company)}</div></div>
+  return `<article class="job"><div class="job-top">${coHtml(o)}<div><h3>${esc(o.title)}</h3><div class="company">${esc(o.company)}</div></div>
   <div class="tools"><button class="tool${sv ? " on" : ""}" data-save="${esc(o.id)}" aria-label="${sv ? "Remove from saved" : "Save listing"}" title="${sv ? "Saved" : "Save"}"><i data-lucide="bookmark" class="icon"></i></button><button class="tool" data-report="${esc(o.id)}" aria-label="Report listing" title="Report"><i data-lucide="flag" class="icon"></i></button></div></div>
   <div class="meta"><span><i data-lucide="map-pin" class="icon"></i>${esc(o.location)}</span><span><i data-lucide="tag" class="icon"></i>${esc(o.type)}</span><span><i data-lucide="clock" class="icon"></i>${ago(o.created_at)}</span>${o.deadline ? `<span><i data-lucide="calendar" class="icon"></i>Closes ${new Date(o.deadline).toLocaleDateString("en-KE", { day: "numeric", month: "short" })}</span>` : ""}</div>
   <p class="desc">${esc(o.description)}</p><div class="job-foot"><span class="badge gray">${esc(o.type)}</span>${btn}</div></article>`;

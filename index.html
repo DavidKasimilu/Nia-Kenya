@@ -42,8 +42,7 @@
   <main id="top">
     <div class="container hero">
       <div>
-        <span class="badge"><i data-lucide="badge-check" class="icon"></i> Verified listings only</span>
-        <h1>Your first role starts <em>here.</em></h1>
+        <h1>With us you have <em>somewhere to start.</em></h1>
         <p class="lead">Nia brings entry-level jobs, internships and industrial attachments for Kenyan graduates and students into one trusted place. Build your profile once, then apply in a tap.</p>
         <div class="hero-cta">
           <button class="btn btn-green btn-lg" data-open-auth="signup">Create free account <i data-lucide="arrow-right" class="icon"></i></button>
@@ -56,11 +55,7 @@
         </div>
       </div>
 
-      <div class="preview" aria-hidden="true">
-        <div class="pv-card"><div class="pv-av">A</div><div><h4>Software Developer Intern</h4><p><i data-lucide="map-pin" class="icon"></i> Nairobi <i data-lucide="clock" class="icon"></i> 3 months</p></div><span class="badge">Internship</span></div>
-        <div class="pv-card"><div class="pv-av">B</div><div><h4>Graduate Trainee, Finance</h4><p><i data-lucide="map-pin" class="icon"></i> Mombasa <i data-lucide="clock" class="icon"></i> Full-time</p></div><span class="badge">Job</span></div>
-        <div class="pv-card"><div class="pv-av">C</div><div><h4>Industrial Attachment, Civil Eng.</h4><p><i data-lucide="map-pin" class="icon"></i> Kisumu <i data-lucide="clock" class="icon"></i> 8 weeks</p></div><span class="badge">Attachment</span></div>
-      </div>
+      <div class="preview" id="latest" aria-live="polite"><div class="pv-card sk"></div><div class="pv-card sk"></div><div class="pv-card sk"></div></div>
     </div>
 
     <section id="opportunities" class="alt">
@@ -182,6 +177,17 @@
       })
     );
     $("openModalBtn").addEventListener("click", () => setTimeout(() => window.NiaCaptcha && NiaCaptcha.ensure(), 0));
+    // Latest real listings (teaser only: title, company, location, type)
+    (async () => {
+      const box = $("latest"), ICON = { job: "briefcase", internship: "graduation-cap", attachment: "building-2" };
+      const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const ago = (iso) => { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "1 day ago" : d < 30 ? d + " days ago" : new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short" }); };
+      let rows = [];
+      try { if (typeof supabaseClient !== "undefined") { const r = await supabaseClient.rpc("public_latest_listings", { p_limit: 3 }); rows = r.data || []; } } catch (e) {}
+      box.innerHTML = rows.length ? rows.map((o) => `<button type="button" class="pv-card"><div class="pv-av">${o.logo_url ? `<img src="${esc(o.logo_url)}" alt="" onerror="this.remove()">` : `<i data-lucide="${ICON[String(o.type).toLowerCase()] || "briefcase"}" class="icon"></i>`}</div><div class="pv-t"><h4>${esc(o.title)}</h4><p>${esc(o.company)}</p><p><i data-lucide="map-pin" class="icon"></i> ${esc(o.location)} <i data-lucide="clock" class="icon"></i> ${ago(o.created_at)}</p></div><span class="badge">${esc(o.type)}</span></button>`).join("") : `<div class="pv-empty">New opportunities are added regularly. Create a free account to see them as they appear.</div>`;
+      if (window.lucide) lucide.createIcons();
+      box.addEventListener("click", (e) => { if (e.target.closest(".pv-card")) { $("openModalBtn").click(); $("tabSignUp").click(); } });
+    })();
     $("menuBtn").addEventListener("click", () => {
       const open = $("navLinks").classList.toggle("open");
       $("menuBtn").setAttribute("aria-expanded", open);

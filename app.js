@@ -166,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
           email,
           password,
-          options: { captchaToken: window.NiaCaptcha && window.NiaCaptcha.token() },
+          options: { captchaToken: window.NiaCaptcha ? await window.NiaCaptcha.getToken() : undefined },
         });
 
         if (error) {
@@ -223,7 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const { data, error } = await supabaseClient.auth.signUp({
           email,
           password,
-          options: { captchaToken: window.NiaCaptcha && window.NiaCaptcha.token() },
+          options: { captchaToken: window.NiaCaptcha ? await window.NiaCaptcha.getToken() : undefined },
         });
 
         if (error) {
@@ -306,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const { error } = await supabaseClient.auth.resend({
           type: "signup",
           email: pendingEmail,
-          options: { captchaToken: window.NiaCaptcha && window.NiaCaptcha.token() },
+          options: { captchaToken: window.NiaCaptcha ? await window.NiaCaptcha.getToken() : undefined },
         });
 
         if (error) {

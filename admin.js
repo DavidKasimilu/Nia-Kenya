@@ -82,6 +82,7 @@ function oppForm(o = {}) {
   <div class="two"><div class="form-group"><label>Type</label><select name="type">${["Job", "Internship", "Attachment"].map((t) => `<option ${o.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>
   <div class="form-group"><label>Status</label><select name="status">${["published", "draft", "closed"].map((t) => `<option ${(o.status || "published") === t ? "selected" : ""}>${t}</option>`).join("")}</select></div></div>
   <div class="form-group"><label>Application deadline (optional)</label><input type="date" name="deadline" value="${o.deadline ? new Date(o.deadline).toLocaleDateString("en-CA") : ""}"></div>
+  <div class="form-group"><label>Logo or icon (optional)</label>${o.logo_url ? `<div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.4rem"><img src="${esc(o.logo_url)}" alt="" style="width:44px;height:44px;object-fit:contain;border:1px solid var(--line);border-radius:10px"><label style="font-weight:500;font-size:.88rem"><input type="checkbox" name="rmlogo"> Remove logo</label></div>` : ""}<input type="file" name="logo" accept="image/png,image/jpeg,image/webp"><small style="color:var(--mute)">PNG, JPG or WebP, up to 1 MB. If empty, a default icon for the listing type is shown.</small></div>
   <div class="form-group"><label>Description</label><textarea name="description" rows="5" required>${esc(o.description)}</textarea></div>
   <div class="form-group"><label>Details to collect from applicants</label><div class="checks2">${fields.filter((f) => f.active).map((f) => `<label><input type="checkbox" name="rf" value="${esc(f.key)}" ${req.has(f.key) ? "checked" : ""}> ${esc(f.label)}</label>`).join("")}</div></div>
   <button class="btn btn-submit" id="sv">${o.id ? "Save changes" : "Publish listing"}</button></form>`);
@@ -90,6 +91,14 @@ function oppForm(o = {}) {
     e.preventDefault(); const f = new FormData(e.target), dl = f.get("deadline");
     const row = { title: f.get("title").trim(), company: f.get("company").trim(), location: f.get("location").trim(), type: f.get("type"), status: f.get("status"), description: f.get("description").trim(), deadline: dl ? new Date(dl + "T23:59:59+03:00").toISOString() : null, required_fields: f.getAll("rf") };
     $("sv").disabled = true;
+    const file = f.get("logo"), bad = (t) => { const m = $("fm"); m.className = "message error"; m.textContent = t; $("sv").disabled = false; };
+    if (file && file.size) {
+      const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[file.type];
+      if (!ext) return bad("Logo must be a PNG, JPG or WebP image."); if (file.size > 1048576) return bad("Logo must be 1 MB or smaller.");
+      const path = `${crypto.randomUUID()}.${ext}`, up = await sb.storage.from("listing-logos").upload(path, file, { contentType: file.type });
+      if (up.error) return bad("Logo upload failed: " + up.error.message);
+      row.logo_url = sb.storage.from("listing-logos").getPublicUrl(path).data.publicUrl;
+    } else if (f.get("rmlogo")) row.logo_url = null;
     const q = o.id ? sb.from("opportunities").update(row).eq("id", o.id).select("id").single() : sb.from("opportunities").insert([row]).select("id").single();
     const { data, error } = await q; $("sv").disabled = false;
     if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.message; return; }

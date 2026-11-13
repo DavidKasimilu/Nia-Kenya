@@ -1,7 +1,7 @@
 // Cloudflare Turnstile helper. Paste your SITE key below (the public one, not the secret).
 // Leave empty to run without CAPTCHA.
 (() => {
-  const SITE_KEY = "0x4AAAAAAF9-5-fTzVv85E6U";
+  const SITE_KEY = "";
   let token = null, wid = null, loading = false;
   function render() {
     const el = document.getElementById("cfTurnstile");
@@ -12,6 +12,13 @@
   window.NiaCaptcha = {
     // Returns the current token (single use) and asks Turnstile for a fresh one.
     token() { const t = token; token = null; if (wid !== null && window.turnstile) window.turnstile.reset(wid); return t || undefined; },
+    // Waits (up to ~20s) until Cloudflare has verified the visitor, then returns a fresh single-use token.
+    async getToken() {
+      if (!SITE_KEY) return undefined;
+      this.ensure();
+      for (let i = 0; i < 130; i++) { if (token) return this.token(); await new Promise((r) => setTimeout(r, 150)); }
+      return undefined;
+    },
     ensure() {
       if (!SITE_KEY) return;
       if (window.turnstile) return render();

@@ -15,9 +15,10 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="container topbar-in">
+    <div class="container topbar-in has-search">
       <a href="dashboard.html" class="brand" aria-label="Nia"><img src="assets/images/logo2-tight.png" alt="Nia" width="40" height="40" /></a>
       <nav class="top-links"><a href="dashboard.html" class="active">Opportunities</a><a href="profile.html">My profile</a></nav>
+      <button class="icon-btn" id="searchBtn" aria-label="Search" aria-expanded="false"><i data-lucide="search" class="icon"></i><span class="dot hidden" id="searchDot"></span></button>
       <div class="me">
         <button class="avatar" id="avatarBtn" aria-label="Account menu" aria-expanded="false"></button>
         <div class="menu hidden" id="menu">
@@ -29,17 +30,16 @@
         </div>
       </div>
     </div>
+    <div class="searchpanel hidden" id="searchPanel"><div class="container sp-in">
+      <div class="field"><i data-lucide="search" class="icon"></i><input id="searchInput" type="search" placeholder="Search roles or companies" /></div>
+      <div class="field"><i data-lucide="map-pin" class="icon"></i><input id="locationFilterInput" type="search" placeholder="Location" /></div>
+      <button class="btn btn-ghost" id="searchClear" type="button">Clear</button>
+    </div></div>
   </header>
 
   <div class="notice hidden" id="announce"><div class="container"><i data-lucide="megaphone" class="icon"></i><span id="announceText"></span></div></div>
 
   <main class="container page">
-    <h1>Find your next opportunity</h1>
-    <p class="sub">Jobs, internships and attachments, posted by the Nia team.</p>
-    <div class="filters">
-      <div class="field"><i data-lucide="search" class="icon"></i><input id="searchInput" type="search" placeholder="Search roles or companies" /></div>
-      <div class="field"><i data-lucide="map-pin" class="icon"></i><input id="locationFilterInput" type="search" placeholder="Location" /></div>
-    </div>
     <div class="chips" id="chips"></div>
     <div class="count" id="count"></div>
     <div class="feed" id="feed"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
