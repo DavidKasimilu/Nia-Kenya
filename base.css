@@ -60,3 +60,5 @@ button,input{font:inherit;color:inherit}
 .brand img,.wordmark img,.auth-brand img,.modal-logo img{display:block;height:auto}
 .modal-logo{margin-bottom:.5rem}
 .cf-ts{display:flex;justify-content:center}.cf-ts:not(:empty){margin-bottom:1rem}
+.cap-wait{opacity:.55;cursor:not-allowed}.btn.cap-wait{background:#a1a1aa;color:#fff}
+.cap-toast{position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);background:#000;color:#fff;padding:.75rem 1.1rem;border-radius:10px;font-size:.9rem;z-index:300;max-width:90vw;text-align:center}

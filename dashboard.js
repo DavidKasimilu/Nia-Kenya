@@ -15,7 +15,7 @@ function coHtml(o) { return o.logo_url ? `<div class="co lg"><img src="${esc(o.l
 function ago(iso) { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "1 day ago" : d < 30 ? d + " days ago" : new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short" }); }
 function isOpen(o) { return o.status !== "closed" && (!o.deadline || new Date(o.deadline) > new Date()); }
 function avatarHtml(p, email) { const n = (p?.full_name || email || "?").trim()[0].toUpperCase(); return p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n); }
-const closeAll = () => ["applyModal", "reportModal", "payModal"].forEach((m) => $(m).classList.add("hidden"));
+const closeAll = () => ["applyModal", "reportModal", "payModal", "alertModal"].forEach((m) => $(m).classList.add("hidden"));
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (!sb) return;
@@ -41,13 +41,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("searchInput").oninput = () => { dot(); deb(); }; $("locationFilterInput").oninput = () => { dot(); deb(); };
   $("searchBtn").onclick = () => { const p = $("searchPanel"); p.classList.toggle("hidden"); $("searchBtn").setAttribute("aria-expanded", !p.classList.contains("hidden")); if (!p.classList.contains("hidden")) $("searchInput").focus(); };
   $("searchClear").onclick = () => { $("searchInput").value = ""; $("locationFilterInput").value = ""; dot(); loadFeed(true); };
-  $("moreBtn").onclick = () => loadFeed(false);
+  $("moreBtn").onclick = () => loadFeed(false); $("alertOpen").onclick = () => openAlert(false);
   $("feed").onclick = (e) => {
     const b = e.target.closest("[data-apply],[data-save],[data-report]"); if (!b) return;
     if (b.dataset.apply) openApply(b.dataset.apply); else if (b.dataset.save) toggleSave(b.dataset.save); else openReport(b.dataset.report);
   };
-  ["applyClose", "applyCancel"].forEach((id) => ($(id).onclick = closeAll)); ["reportClose", "reportCancel", "payClose"].forEach((id) => ($(id).onclick = closeAll)); $("payGo").onclick = startPayment;
-  ["applyModal", "reportModal", "payModal"].forEach((m) => ($(m).onclick = (e) => { if (e.target === $(m)) closeAll(); }));
+  ["applyClose", "applyCancel"].forEach((id) => ($(id).onclick = closeAll)); ["reportClose", "reportCancel", "payClose", "alertClose"].forEach((id) => ($(id).onclick = closeAll)); $("payGo").onclick = startPayment;
+  ["applyModal", "reportModal", "payModal", "alertModal"].forEach((m) => ($(m).onclick = (e) => { if (e.target === $(m)) closeAll(); }));
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
   $("applyForm").onsubmit = submitApply; $("reportForm").onsubmit = submitReport;
   $("reportReason").innerHTML = `<option value="">Select a reason…</option>` + Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
@@ -80,12 +80,13 @@ async function loadFeed(reset) {
   const { data, count, error } = await q; if (my !== state.seq) return;
   if (error) { $("feed").innerHTML = `<div class="empty">Could not load opportunities. Please refresh.</div>`; return; }
   state.items = state.items.concat(data || []); state.total = count ?? state.items.length; render();
+  if (reset && state.total === 0) maybeAutoAlert();
 }
 
 function render() {
   $("count").textContent = `${state.total} ${state.total === 1 ? "opportunity" : "opportunities"}`;
   $("feed").innerHTML = state.items.length ? state.items.map(card).join("") : `<div class="empty"><i data-lucide="${state.type === "Saved" ? "bookmark" : "search-x"}" class="icon"></i><p>${state.type === "Saved" ? "You haven't saved anything yet." : "No opportunities match your filters."}</p></div>`;
-  $("moreBtn").classList.toggle("hidden", state.items.length >= state.total); icons();
+  $("moreBtn").classList.toggle("hidden", state.items.length >= state.total); $("alertCta").classList.toggle("hidden", state.staff); icons();
 }
 
 function card(o) {
@@ -170,4 +171,49 @@ async function claimReferral() {
     const r = JSON.parse(raw); if (!r.c || Date.now() - r.t > 30 * 864e5) return;
     await sb.rpc("claim_referral", { p_code: r.c });
   } catch (e) {}
+}
+
+/* ---------- Alerts and the subscribe reminder ---------- */
+function maybeAutoAlert() {
+  if (state.staff) return;
+  const sig = [state.type, $("searchInput").value.trim(), $("locationFilterInput").value.trim()].join("|");
+  try { if (sessionStorage.getItem("nia_al_sig") === sig) return; sessionStorage.setItem("nia_al_sig", sig); } catch (e) {}
+  setTimeout(() => openAlert(true), 500);
+}
+async function openAlert(auto) {
+  if (state.staff) return;
+  const prefs = await NiaAlerts.load(sb, state.user.id);
+  if (auto && prefs && prefs.enabled) return;
+  const pre = prefs || { types: ["Job", "Internship", "Attachment"].includes(state.type) ? [state.type] : [], keyword: $("searchInput").value.trim() || null, location: $("locationFilterInput").value.trim() || null };
+  $("alertModal").classList.remove("hidden");
+  if (!state.required || state.subActive) renderAlertForm(pre); else renderAlertPitch(pre, auto);
+}
+function renderAlertPitch(pre, auto) {
+  const price = state.plan?.amount_kes ?? 250;
+  $("alertBody").innerHTML = `<h2>Do not miss the right one</h2><p class="sub">${auto ? "You did not find a match today. " : ""}Subscribe and we will email you when a new opportunity matches what you are looking for.</p>
+    <div class="price"><b>KES ${price}</b><span> / month</span></div>
+    <ul class="perks"><li><i data-lucide="bell" class="icon"></i> A daily email when new matches are posted</li><li><i data-lucide="sliders-horizontal" class="icon"></i> Choose the types, keyword and location you care about</li><li><i data-lucide="check" class="icon"></i> Apply to any listing, as many as you like</li></ul>
+    <div id="alMsg" class="message hidden"></div>
+    <button class="btn btn-green btn-lg" id="alSub" style="width:100%">Subscribe with M-Pesa or card</button>
+    <button class="btn btn-ghost" id="alLater" style="width:100%;margin-top:.5rem">Maybe later</button>
+    <p class="fine">No automatic charges. Secure payment by Paystack.</p>`;
+  icons();
+  const err = (t) => { const m = $("alMsg"); m.className = "message error"; m.textContent = t; $("alSub").disabled = false; $("alSub").textContent = "Subscribe with M-Pesa or card"; };
+  $("alLater").onclick = closeAll;
+  $("alSub").onclick = async () => {
+    if (!state.plan) return err("Membership is not available right now.");
+    $("alSub").disabled = true;
+    await NiaPay.subscribe({ sb, user: state.user, plan: state.plan,
+      onBusy: (v) => ($("alSub").textContent = v ? "Confirming your payment…" : "Subscribe with M-Pesa or card"),
+      onClose: () => { if (!state.subActive) $("alSub").disabled = false; }, onError: err,
+      onDone: () => { state.subActive = true; toast("You are subscribed. Welcome!"); renderAlertForm(pre); } });
+  };
+}
+function renderAlertForm(pre) {
+  $("alertBody").innerHTML = `<h2>Get notified</h2><p class="sub">We send one email a day when new opportunities match.</p><div id="alMsg" class="message hidden"></div>${NiaAlerts.formHtml(pre)}<button class="btn btn-submit" id="alSave">Save alert</button>`;
+  $("alSave").onclick = async () => {
+    $("alSave").disabled = true; const { error } = await NiaAlerts.save(sb, state.user.id, NiaAlerts.read($("alertBody"))); $("alSave").disabled = false;
+    if (error) { const m = $("alMsg"); m.className = "message error"; m.textContent = error.message; return; }
+    closeAll(); toast("Alert saved. We will email you when something matches.");
+  };
 }

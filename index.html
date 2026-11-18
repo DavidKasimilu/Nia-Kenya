@@ -177,6 +177,7 @@
         if (b.dataset.openAuth === "signup") $("tabSignUp").click();
       })
     );
+    if (window.NiaCaptcha) NiaCaptcha.watch(["signInSubmitBtn", "signUpSubmitBtn", "resendOtpBtn"]);
     $("openModalBtn").addEventListener("click", () => setTimeout(() => window.NiaCaptcha && NiaCaptcha.ensure(), 0));
     // Latest real listings (teaser only: title, company, location, type)
     (async () => {

@@ -17,7 +17,7 @@ function paintAvatars() {
 }
 function showTab(t) {
   document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
-  ["profile", "applications", "saved", "subscription", "affiliate", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
+  ["profile", "applications", "saved", "alerts", "subscription", "affiliate", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
   if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
 }
 const resumePath = (v) => (v && /^https?:/.test(v) ? pathOf(v, "resumes") : v || null);
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out;
   document.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-  showTab(["applications", "saved", "subscription", "affiliate", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
+  showTab(["applications", "saved", "alerts", "subscription", "affiliate", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
   $("profileForm").onsubmit = saveProfile; $("pwForm").onsubmit = changePw;
   $("profileResume").onchange = uploadCv;
   $("deleteCvBtn").onclick = () => $("confirmModal").classList.remove("hidden");
@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("bigAvatar").onclick = openAvatars; $("avClose").onclick = () => $("avatarModal").classList.add("hidden");
   $("avFile").onchange = uploadAvatar;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".modal-overlay").forEach((m) => m.classList.add("hidden")); });
-  loadApplications(); loadSaved(); loadSub(); loadAff();
+  loadApplications(); loadSaved(); loadSub(); loadAff(); loadAlerts();
 });
 
 async function saveProfile(e) {
@@ -240,4 +240,17 @@ async function loadAff() {
   $("affCopy").onclick = async () => { try { await navigator.clipboard.writeText(link); msg("Link copied."); } catch (e) { $("affLink").select(); msg("Press and hold the link to copy it."); } };
   $("affPhoneSave").onclick = async () => { const r = await sb.rpc("set_payout_phone", { p_phone: $("affPhone").value }); if (r.error) return msg(r.error.message, true); msg("Payout number saved."); };
   icons();
+}
+
+/* ---------- Alerts ---------- */
+async function loadAlerts() {
+  const box = $("alertsBox");
+  const [prefs, su, rq] = await Promise.all([NiaAlerts.load(sb, user.id), sb.from("subscriptions").select("paid_until").eq("user_id", user.id).maybeSingle(), sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle()]);
+  const eligible = rq.data?.value !== true || (su.data && new Date(su.data.paid_until) > new Date());
+  box.innerHTML = `<div class="pcard"><h2>Opportunity alerts</h2>
+    ${eligible ? "" : `<div class="message info">Alerts are emailed to active members. <a href="#subscription" style="text-decoration:underline;font-weight:600" id="alToSub">Subscribe</a> to start receiving them.</div>`}
+    <p style="color:var(--ink-2);font-size:.92rem;margin-bottom:1rem">Tell us what you are looking for. We send one email a day when new matching opportunities are posted.</p>
+    ${NiaAlerts.formHtml(prefs || {})}<button class="btn btn-primary" id="alSaveP">Save alert</button></div>`;
+  if ($("alToSub")) $("alToSub").onclick = (e) => { e.preventDefault(); showTab("subscription"); };
+  $("alSaveP").onclick = async () => { const { error } = await NiaAlerts.save(sb, user.id, NiaAlerts.read(box)); if (error) return say(error.message, true); say("Alert saved."); };
 }

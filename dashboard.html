@@ -44,6 +44,7 @@
     <div class="count" id="count"></div>
     <div class="feed" id="feed"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
     <div class="more"><button id="moreBtn" class="btn btn-ghost hidden">Load more</button></div>
+    <div class="alertcta hidden" id="alertCta"><div><b>Did not find the right one?</b><span>Get an email when new opportunities match what you want.</span></div><button class="btn btn-primary" id="alertOpen"><i data-lucide="bell" class="icon"></i> Notify me</button></div>
   </main>
 
   <div id="applyModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
@@ -90,6 +91,11 @@
 
   <script src="paystack-config.js"></script>
   <script src="nia-pay.js"></script>
+  <div id="alertModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal sheet"><button class="close-btn" id="alertClose" aria-label="Close"><i data-lucide="x" class="icon"></i></button><div id="alertBody"></div></div>
+  </div>
+
+  <script src="alerts.js"></script>
   <script src="dashboard.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
