@@ -4,7 +4,7 @@
 // - A device that passed in the last 24 hours gets the check run quietly in the background (the widget
 //   only appears if Cloudflare needs interaction). Supabase still needs one fresh single-use token per request.
 (() => {
-  const SITE_KEY = "";
+  const SITE_KEY = "0x4AAAAAAF9-5-fTzVv85E6U";
   const DAY = 864e5;
   let token = null, wid = null, loading = false, buttons = [];
   const verifiedToday = () => { try { return Date.now() - Number(localStorage.getItem("nia_dv") || 0) < DAY; } catch (e) { return false; } };
