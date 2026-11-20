@@ -1,43 +1,65 @@
-// Cloudflare Turnstile helper. Paste your SITE key (the public one) below. Leave empty to run without CAPTCHA.
-// - Buttons passed to NiaCaptcha.watch([...ids]) stay grey until the device is verified.
-// - Tapping a grey button shows a short notice instead of sending the request.
-// - A device that passed in the last 24 hours gets the check run quietly in the background (the widget
-//   only appears if Cloudflare needs interaction). Supabase still needs one fresh single-use token per request.
+// Device check, once per day. Needs captcha-config.js loaded first and the updated Cloudflare Worker.
+// 1. A visitor with no valid pass sees the Cloudflare check once. The Worker verifies it and returns a signed
+//    pass that lasts 24 hours and is kept in this browser.
+// 2. While the pass is valid, sign-in and sign-up buttons are ready immediately and no check is shown.
+// 3. Buttons passed to NiaCaptcha.watch([...ids]) stay grey until a pass exists; tapping one while grey shows a notice.
+// 4. NiaCaptcha.fetch adds the pass to requests. Give it to createClient via { global: { fetch: NiaCaptcha.fetch } }.
 (() => {
-  const SITE_KEY = "0x4AAAAAAF9-5-fTzVv85E6U";
-  const DAY = 864e5;
-  let token = null, wid = null, loading = false, buttons = [];
-  const verifiedToday = () => { try { return Date.now() - Number(localStorage.getItem("nia_dv") || 0) < DAY; } catch (e) { return false; } };
-  const sync = () => buttons.forEach((b) => b.classList.toggle("cap-wait", !!SITE_KEY && !token));
-  function notice(msg) { const d = document.createElement("div"); d.className = "cap-toast"; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+  const GATEWAY = "https://nia-gateway.davidkasimilu71.workers.dev";
+  const SITE_KEY = (window.NIA_CAPTCHA && window.NIA_CAPTCHA.siteKey) || "";
+  const LS = "nia_pass";
+  let wid = null, loading = false, buttons = [], mem = null;
+
+  function getPass() {
+    let d = mem;
+    if (!d) { try { d = JSON.parse(localStorage.getItem(LS) || "null"); } catch (e) { d = null; } }
+    if (d && d.p && d.e - Date.now() > 60000) { mem = d; return d.p; }
+    mem = null; return null;
+  }
+  const sync = () => buttons.forEach((b) => b.classList.toggle("cap-wait", !!SITE_KEY && !getPass()));
+  function notice(msg) { const d = document.createElement("div"); d.className = "cap-toast"; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 2800); }
+
+  async function claim(t) {
+    try {
+      const r = await fetch(GATEWAY + "/nia/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: t }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.pass) throw new Error(j.msg || "Verification failed. Please try again.");
+      mem = { p: j.pass, e: j.expires_at };
+      try { localStorage.setItem(LS, JSON.stringify(mem)); } catch (e) {}
+      if (wid !== null && window.turnstile) { try { window.turnstile.remove(wid); } catch (e) {} wid = null; }
+      sync();
+    } catch (e) {
+      notice(e.message || "Verification failed. Please try again.");
+      if (wid !== null && window.turnstile) window.turnstile.reset(wid);
+    }
+  }
   function render() {
     const el = document.getElementById("cfTurnstile");
-    if (!el || wid !== null || !window.turnstile) return;
-    const off = () => { token = null; sync(); };
-    wid = window.turnstile.render(el, {
-      sitekey: SITE_KEY, theme: "light", appearance: verifiedToday() ? "interaction-only" : "always",
-      callback: (t) => { token = t; try { localStorage.setItem("nia_dv", String(Date.now())); } catch (e) {} sync(); },
-      "expired-callback": off, "error-callback": off, "timeout-callback": off,
-    });
+    if (!el || wid !== null || !window.turnstile || getPass()) return;
+    wid = window.turnstile.render(el, { sitekey: SITE_KEY, theme: "light", callback: claim, "expired-callback": () => window.turnstile.reset(wid), "error-callback": () => {} });
   }
   window.__niaTsReady = render;
+
   const api = (window.NiaCaptcha = {
-    // Single-use token; asks Turnstile for a fresh one straight away.
-    token() { const t = token; token = null; if (wid !== null && window.turnstile) window.turnstile.reset(wid); sync(); return t || undefined; },
-    // Waits up to ~20s for verification to finish, then returns a token.
-    async getToken() {
-      if (!SITE_KEY) return undefined;
-      api.ensure();
-      for (let i = 0; i < 130; i++) { if (token) return api.token(); await new Promise((r) => setTimeout(r, 150)); }
-      return undefined;
+    // fetch wrapper: adds the pass; if the Worker says the pass is no longer valid, asks for a new check
+    fetch: async (input, init = {}) => {
+      const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+      const p = getPass(); if (p) headers.set("x-nia-pass", p);
+      const res = await fetch(input, { ...init, headers });
+      if (res.status === 403) {
+        try { const j = await res.clone().json(); if (j.error_code === "device_check_required") { mem = null; try { localStorage.removeItem(LS); } catch (e) {} sync(); api.ensure(); } } catch (e) {}
+      }
+      return res;
     },
     watch(ids) {
       buttons = ids.map((id) => document.getElementById(id)).filter(Boolean);
-      buttons.forEach((b) => b.addEventListener("click", (e) => { if (SITE_KEY && !token) { e.preventDefault(); e.stopImmediatePropagation(); notice("Verifying your device. Please wait a moment, the button will turn on when it is done."); api.ensure(); } }, true));
-      sync();
+      buttons.forEach((b) => b.addEventListener("click", (e) => {
+        if (SITE_KEY && !getPass()) { e.preventDefault(); e.stopImmediatePropagation(); notice("Verifying your device. Please wait a moment, the button will turn on when it is done."); api.ensure(); }
+      }, true));
+      sync(); setInterval(() => { sync(); if (SITE_KEY && !getPass()) api.ensure(); }, 30000);
     },
     ensure() {
-      if (!SITE_KEY) return;
+      if (!SITE_KEY || getPass()) return;
       if (window.turnstile) return render();
       if (loading) return; loading = true;
       const s = document.createElement("script"); s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__niaTsReady"; s.async = true; document.head.appendChild(s);
