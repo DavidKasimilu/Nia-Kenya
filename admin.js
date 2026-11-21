@@ -20,7 +20,7 @@ function confirmBox(title, msg, ok) {
   });
 }
 async function log(action, type, id, details = {}) { await sb.from("audit_log").insert([{ actor_id: me.id, actor_email: me.email, action, target_type: type, target_id: String(id || ""), details }]); }
-function head(t, s, btn = "") { return `<div class="bar"><div><h1>${esc(t)}</h1><p class="sub" style="margin-bottom:0">${esc(s)}</p></div>${btn}</div>`; }
+function head(t, s, btn = "") { return btn ? `<div class="bar" style="justify-content:flex-end;align-items:center">${btn}</div>` : ""; }
 const empty = (t) => `<div class="empty">${esc(t)}</div>`;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   me = session.user;
   const { data: p } = await sb.from("profiles").select("role,status").eq("id", me.id).maybeSingle();
   if (!["admin", "moderator"].includes(p?.role) || p.status === "banned") return (location.href = "dashboard.html");
-  isAdmin = p.role === "admin"; if (!isAdmin) document.querySelectorAll("[data-admin]").forEach((e) => e.remove());
+  isAdmin = p.role === "admin"; buildNav();
   $("logoutBtn").onclick = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("modal").onclick = (e) => { if (e.target === $("modal")) closeModal(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -38,11 +38,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { programs: programsView, affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
   let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
-  if (!isAdmin && ["affiliates", "billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
+  if (!isAdmin && ["programs", "affiliates", "billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
   document.querySelectorAll("#nav a[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === v));
+  document.querySelectorAll("#nav .grp").forEach((b) => b.classList.toggle("on", GROUPS.find((x) => x.id === b.dataset.g).items.some((i) => i[0] === v))); closePop();
   $("view").onclick = null; $("view").innerHTML = empty("Loading…");
   try { await views[v](); } catch (e) { $("view").innerHTML = empty("Something went wrong: " + e.message); }
   icons(); window.scrollTo(0, 0);
@@ -322,5 +323,71 @@ async function affiliatesView() {
     const t = T[id] || { pending: 0 };
     openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>Mark as paid</h2><p class="sub">Send ${kes(t.pending)} to ${esc(a.payout_phone || "the affiliate (no number saved)")} by M-Pesa first, then enter the reference.</p><div class="form-group"><label>M-Pesa reference</label><input id="pRef" placeholder="e.g. SKL2ABC123"></div><button class="btn btn-submit" id="pGo">Mark ${kes(t.pending)} as paid</button>`);
     $("x").onclick = closeModal; $("pGo").onclick = async () => { const { error } = await sb.rpc("admin_mark_commissions_paid", { p_affiliate: id, p_ref: $("pRef").value }); if (error) return toast(error.message); closeModal(); toast("Marked as paid."); route(); };
+  };
+}
+
+/* ---------- Grouped menu ---------- */
+const GROUPS = [
+  { id: "opp", label: "Opportunities", icon: "briefcase", items: [["opportunities", "Listings", "briefcase"], ["applications", "Applicants", "inbox"], ["reports", "Reports", "flag"], ["programs", "Programs", "sparkles", 1], ["fields", "Applicant details", "list-checks", 1]] },
+  { id: "ppl", label: "People", icon: "users", items: [["users", "Users", "users"], ["avatars", "Avatars", "image", 1]] },
+  { id: "money", label: "Money", icon: "wallet", items: [["billing", "Billing", "wallet", 1], ["affiliates", "Affiliates", "handshake", 1]] },
+  { id: "plat", label: "Platform", icon: "settings-2", items: [["announcements", "Announcements", "megaphone", 1], ["audit", "Audit log", "scroll-text", 1]] },
+];
+const closePop = () => { const p = $("navPop"); if (p) p.classList.add("hidden"); };
+function buildNav() {
+  const nav = $("nav"), sp = nav.querySelector(".sp");
+  GROUPS.forEach((g) => {
+    const items = g.items.filter((i) => !i[3] || isAdmin); if (!items.length) return;
+    const b = document.createElement("button"); b.className = "grp"; b.dataset.g = g.id;
+    b.innerHTML = `<i data-lucide="${g.icon}" class="icon"></i><span>${g.label}</span><i data-lucide="chevron-right" class="icon chev"></i>`;
+    b.onclick = (e) => { e.stopPropagation(); togglePop(b, items); };
+    nav.insertBefore(b, sp);
+  });
+  document.addEventListener("click", closePop); window.addEventListener("resize", closePop); nav.addEventListener("scroll", closePop);
+  icons();
+}
+function togglePop(btn, items) {
+  const pop = $("navPop"); if (!pop.classList.contains("hidden") && pop.dataset.for === btn.dataset.g) return closePop();
+  const cur = location.hash.slice(1) || "overview"; pop.dataset.for = btn.dataset.g;
+  pop.innerHTML = items.map((i) => `<a href="#${i[0]}" class="${cur === i[0] ? "on" : ""}"><i data-lucide="${i[2]}" class="icon"></i>${i[1]}</a>`).join("");
+  pop.classList.remove("hidden"); icons();
+  const r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  if (innerWidth <= 860) { pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + "px"; pop.style.top = Math.max(8, r.top - h - 8) + "px"; }
+  else { pop.style.left = r.right + 8 + "px"; pop.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + "px"; }
+  pop.onclick = closePop;
+}
+
+/* ---------- Programs ---------- */
+async function programsView() {
+  const [pg, su] = await Promise.all([sb.from("programs").select("*").order("created_at", { ascending: false }), sb.from("program_signups").select("*").order("created_at", { ascending: false }).limit(2000)]);
+  if (pg.error) throw pg.error;
+  const C = {}; (su.data || []).forEach((x) => (C[x.program_id] = (C[x.program_id] || 0) + 1));
+  $("view").innerHTML = head("", "", `<button class="btn btn-green" id="np"><i data-lucide="plus" class="icon"></i> New program</button>`) +
+    `<div class="rows">${(pg.data || []).map((p) => `<div class="r"><div class="grow"><h3>${esc(p.title)}</h3><p>${esc(p.kind)} · ${esc(p.summary)}</p></div>${badge(p.status)}<div class="acts"><button class="ib" data-s="${esc(p.id)}"><i data-lucide="users" class="icon"></i><span>Signups (${C[p.id] || 0})</span></button><button class="ib" data-e="${esc(p.id)}"><i data-lucide="pencil" class="icon"></i><span>Edit</span></button><button class="ib d" data-d="${esc(p.id)}"><i data-lucide="trash-2" class="icon"></i><span>Delete</span></button></div></div>`).join("") || empty("No programs yet.")}</div>`;
+  $("np").onclick = () => programForm();
+  $("view").onclick = async (e) => {
+    const b = e.target.closest("button[data-e],button[data-d],button[data-s]"); if (!b) return; const p = pg.data.find((x) => x.id === (b.dataset.e || b.dataset.d || b.dataset.s));
+    if (b.dataset.e) return programForm(p);
+    if (b.dataset.d) { if (await confirmBox("Delete program?", `"${p.title}" and its signups will be removed.`, "Delete")) { const { error } = await sb.from("programs").delete().eq("id", p.id); if (error) return toast(error.message); await log("program.delete", "program", p.id, { title: p.title }); route(); } return; }
+    const list = (su.data || []).filter((x) => x.program_id === p.id), ids = list.map((x) => x.user_id), pr = ids.length ? (await sb.from("profiles").select("id,email,full_name,phone").in("id", ids)).data || [] : [], P = Object.fromEntries(pr.map((x) => [x.id, x]));
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${esc(p.title)}</h2><p class="sub">${list.length} signup(s)</p><div class="rows">${list.map((x) => `<div class="r"><div class="grow"><h3>${esc(P[x.user_id]?.full_name || P[x.user_id]?.email || "Unknown")}</h3><p>${esc(P[x.user_id]?.email || "")}${P[x.user_id]?.phone ? " · " + esc(P[x.user_id].phone) : ""}${x.message ? " · " + esc(x.message) : ""}</p></div><select class="sel" data-sg="${esc(x.id)}">${["new", "contacted", "accepted", "declined"].map((s) => `<option ${x.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>`).join("") || empty("No signups yet.")}</div>`);
+    $("x").onclick = closeModal;
+    $("modalBody").onchange = async (ev) => { const s = ev.target.closest("[data-sg]"); if (!s) return; const { error } = await sb.from("program_signups").update({ status: s.value }).eq("id", s.dataset.sg); toast(error ? error.message : "Saved."); };
+  };
+}
+function programForm(p = {}) {
+  openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${p.id ? "Edit program" : "New program"}</h2><p class="sub">Shown to students on the Programs page.</p><div id="fm" class="message hidden"></div>
+  <form id="pf"><div class="form-group"><label>Title</label><input name="title" required maxlength="120" value="${esc(p.title)}"></div>
+  <div class="two"><div class="form-group"><label>Type</label><select name="kind">${["affiliate", "ambassador", "other"].map((k) => `<option ${p.kind === k ? "selected" : ""}>${k}</option>`).join("")}</select></div><div class="form-group"><label>Status</label><select name="status">${["published", "draft", "closed"].map((k) => `<option ${(p.status || "published") === k ? "selected" : ""}>${k}</option>`).join("")}</select></div></div>
+  <div class="form-group"><label>Short summary</label><input name="summary" required maxlength="200" value="${esc(p.summary)}"></div>
+  <div class="form-group"><label>Reward (optional)</label><input name="reward" maxlength="80" placeholder="e.g. 20% commission" value="${esc(p.reward)}"></div>
+  <div class="form-group"><label>Details</label><textarea name="description" rows="5">${esc(p.description)}</textarea></div>
+  <button class="btn btn-submit" id="sv">${p.id ? "Save changes" : "Publish program"}</button></form>`);
+  $("x").onclick = closeModal;
+  $("pf").onsubmit = async (e) => {
+    e.preventDefault(); const f = new FormData(e.target), row = { title: f.get("title").trim(), kind: f.get("kind"), status: f.get("status"), summary: f.get("summary").trim(), reward: f.get("reward").trim() || null, description: f.get("description").trim() || null };
+    $("sv").disabled = true; const { data, error } = await (p.id ? sb.from("programs").update(row).eq("id", p.id).select("id").single() : sb.from("programs").insert([row]).select("id").single()); $("sv").disabled = false;
+    if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.message; return; }
+    await log(p.id ? "program.update" : "program.create", "program", data.id, { title: row.title }); closeModal(); toast("Saved."); route();
   };
 }
