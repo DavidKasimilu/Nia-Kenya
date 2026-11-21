@@ -13,6 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body data-page="profile">
+  <script>if (matchMedia("(max-width: 760px)").matches && /^#(profile|applications|saved|alerts|subscription|affiliate|settings)$/.test(location.hash)) document.body.classList.add("p-detail");</script>
   <header class="topbar"><div class="container topbar-in">
     <a href="dashboard.html" class="brand" aria-label="Nia"><img src="assets/images/logo2-tight.png" alt="Nia" width="40" height="40" /></a>
     <nav class="top-links"><a href="dashboard.html">Opportunities</a><a href="programs.html">Programs</a><a href="profile.html" class="active">My profile</a></nav>
@@ -131,8 +132,13 @@
   <script src="alerts.js"></script>
   <script src="paystack-config.js"></script>
   <script src="nia-pay.js"></script>
+  <script>
+    (function () { var T = ["profile", "applications", "saved", "alerts", "subscription", "affiliate", "settings"], L = { profile: "Profile details", applications: "Applications", saved: "Saved", alerts: "Alerts", subscription: "Subscription", affiliate: "Affiliate program", settings: "Settings" }, h = location.hash.slice(1);
+      if (T.indexOf(h) > -1) { T.forEach(function (x) { document.getElementById("tab-" + x).classList.toggle("hidden", x !== h); }); document.getElementById("pTitle").textContent = L[h]; document.getElementById("pBack").classList.add("hidden"); } })();
+  </script>
   <script src="profile.js"></script>
   <script src="nav.js"></script>
+  <script src="notify.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>

@@ -17,15 +17,16 @@ function paintAvatars() {
 }
 const TABS = ["profile", "applications", "saved", "alerts", "subscription", "affiliate", "settings"];
 const TAB_LABEL = { profile: "Profile details", applications: "Applications", saved: "Saved", alerts: "Alerts", subscription: "Subscription", affiliate: "Affiliate program", settings: "Settings" };
+let viaMenu = false;
 function route() {
   const h = location.hash.slice(1), mobile = matchMedia("(max-width: 760px)").matches;
   const t = TABS.includes(h) ? h : mobile ? null : "profile";
   document.body.classList.toggle("p-detail", !!t);
   TABS.forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
   document.querySelectorAll("#pmenu a[data-tab]").forEach((a) => a.classList.toggle("active", a.dataset.tab === t));
-  $("pTitle").textContent = TAB_LABEL[t] || ""; window.scrollTo(0, 0);
+  $("pTitle").textContent = TAB_LABEL[t] || ""; $("pBack").classList.toggle("hidden", !viaMenu || !t); viaMenu = false; window.scrollTo(0, 0);
 }
-function showTab(t) { if (location.hash.slice(1) === t) route(); else location.hash = t; }
+function showTab(t) { viaMenu = true; if (location.hash.slice(1) === t) route(); else location.hash = t; }
 const resumePath = (v) => (v && /^https?:/.test(v) ? pathOf(v, "resumes") : v || null);
 const pathOf = (url, bucket) => (url && url.includes(`/object/public/${bucket}/`) ? decodeURIComponent(url.split(`/object/public/${bucket}/`)[1].split("?")[0]) : null);
 
@@ -47,6 +48,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
   $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out; $("pSignout").onclick = out;
   $("pBack").onclick = () => { history.pushState(null, "", location.pathname); route(); };
+  document.querySelectorAll("#pmenu a[data-tab]").forEach((a) => a.addEventListener("click", () => { viaMenu = true; }));
   window.addEventListener("hashchange", route); matchMedia("(max-width: 760px)").addEventListener("change", route);
   route();
   $("profileForm").onsubmit = saveProfile; $("pwForm").onsubmit = changePw;

@@ -35,13 +35,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("logoutBtn").onclick = async () => { await sb.auth.signOut(); location.href = "index.html"; };
 
   $("chips").innerHTML = TYPES.map((t) => `<button class="chip${t === state.type ? " on" : ""}" data-t="${t}">${t === "All" ? "All" : t === "Saved" ? "Saved" : t + "s"}</button>`).join("");
-  $("chips").onclick = (e) => { const b = e.target.closest(".chip"); if (!b) return; state.type = b.dataset.t; document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); loadFeed(true); };
+  $("chips").onclick = (e) => { const b = e.target.closest(".chip"); if (!b) return; state.type = b.dataset.t; $("filterDot").classList.toggle("hidden", state.type === "All"); document.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); loadFeed(true); };
   let t; const deb = () => { clearTimeout(t); t = setTimeout(() => loadFeed(true), 300); };
   const dot = () => $("searchDot").classList.toggle("hidden", !($("searchInput").value.trim() || $("locationFilterInput").value.trim()));
   $("searchInput").oninput = () => { dot(); deb(); }; $("locationFilterInput").oninput = () => { dot(); deb(); };
   $("searchBtn").onclick = () => { const p = $("searchPanel"); p.classList.toggle("hidden"); $("searchBtn").setAttribute("aria-expanded", !p.classList.contains("hidden")); if (!p.classList.contains("hidden")) $("searchInput").focus(); };
+  $("filterBtn").onclick = () => $("chips").classList.toggle("hidden");
   if (location.hash === "#search") $("searchBtn").click();
-  loadPrograms();
   $("searchClear").onclick = () => { $("searchInput").value = ""; $("locationFilterInput").value = ""; dot(); loadFeed(true); };
   $("moreBtn").onclick = () => loadFeed(false); $("alertOpen").onclick = () => openAlert(false);
   $("feed").onclick = (e) => {
@@ -220,11 +220,3 @@ function renderAlertForm(pre) {
   };
 }
 
-/* ---------- Programs strip ---------- */
-const PK = { affiliate: "handshake", ambassador: "users", other: "sparkles" };
-async function loadPrograms() {
-  const { data } = await sb.from("programs").select("id,title,kind").eq("status", "published").order("created_at", { ascending: false }).limit(10);
-  if (!data || !data.length) return;
-  $("progStrip").innerHTML = data.map((p) => `<a class="story" href="programs.html#${esc(p.id)}"><span class="ring"><span><i data-lucide="${PK[p.kind] || "sparkles"}" class="icon"></i></span></span><small>${esc(p.title)}</small></a>`).join("");
-  $("progStrip").classList.remove("hidden"); icons();
-}

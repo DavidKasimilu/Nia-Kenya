@@ -18,6 +18,7 @@
     <div class="container topbar-in has-search">
       <a href="dashboard.html" class="brand" aria-label="Nia"><img src="assets/images/logo2-tight.png" alt="Nia" width="40" height="40" /></a>
       <nav class="top-links"><a href="dashboard.html" class="active">Opportunities</a><a href="programs.html">Programs</a><a href="profile.html">My profile</a></nav>
+      <div class="tb-right"><button class="tb-btn" id="filterBtn" aria-label="Filter"><i data-lucide="sliders-horizontal" class="icon"></i><span class="dot hidden" id="filterDot"></span></button></div>
       <button class="icon-btn" id="searchBtn" aria-label="Search" aria-expanded="false"><i data-lucide="search" class="icon"></i><span class="dot hidden" id="searchDot"></span></button>
       <div class="me">
         <button class="avatar" id="avatarBtn" aria-label="Account menu" aria-expanded="false"></button>
@@ -40,8 +41,7 @@
   <div class="notice hidden" id="announce"><div class="container"><i data-lucide="megaphone" class="icon"></i><span id="announceText"></span></div></div>
 
   <main class="container page">
-    <div class="stories hidden" id="progStrip" aria-label="Programs"></div>
-    <div class="chips" id="chips"></div>
+    <div class="chips hidden" id="chips"></div>
     <div class="count" id="count"></div>
     <div class="feed" id="feed"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
     <div class="more"><button id="moreBtn" class="btn btn-ghost hidden">Load more</button></div>
@@ -99,6 +99,7 @@
   <script src="alerts.js"></script>
   <script src="dashboard.js"></script>
   <script src="nav.js"></script>
+  <script src="notify.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>
