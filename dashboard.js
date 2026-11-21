@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!p?.referred_by) claimReferral();
   state.profile = p || {}; state.staff = ["admin", "moderator"].includes(p?.role);
 
-  $("avatarBtn").innerHTML = avatarHtml(p, session.user.email);
+  $("avatarBtn").innerHTML = avatarHtml(p, session.user.email); if (window.NiaNav) NiaNav.setAvatar($("avatarBtn").innerHTML);
   $("menuName").textContent = p?.full_name || "Student"; $("menuEmail").textContent = session.user.email;
   if (state.staff) $("adminLink").classList.remove("hidden");
   $("avatarBtn").onclick = (e) => { e.stopPropagation(); const m = $("menu"); m.classList.toggle("hidden"); $("avatarBtn").setAttribute("aria-expanded", !m.classList.contains("hidden")); };
@@ -40,6 +40,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const dot = () => $("searchDot").classList.toggle("hidden", !($("searchInput").value.trim() || $("locationFilterInput").value.trim()));
   $("searchInput").oninput = () => { dot(); deb(); }; $("locationFilterInput").oninput = () => { dot(); deb(); };
   $("searchBtn").onclick = () => { const p = $("searchPanel"); p.classList.toggle("hidden"); $("searchBtn").setAttribute("aria-expanded", !p.classList.contains("hidden")); if (!p.classList.contains("hidden")) $("searchInput").focus(); };
+  if (location.hash === "#search") $("searchBtn").click();
+  loadPrograms();
   $("searchClear").onclick = () => { $("searchInput").value = ""; $("locationFilterInput").value = ""; dot(); loadFeed(true); };
   $("moreBtn").onclick = () => loadFeed(false); $("alertOpen").onclick = () => openAlert(false);
   $("feed").onclick = (e) => {
@@ -216,4 +218,13 @@ function renderAlertForm(pre) {
     if (error) { const m = $("alMsg"); m.className = "message error"; m.textContent = error.message; return; }
     closeAll(); toast("Alert saved. We will email you when something matches.");
   };
+}
+
+/* ---------- Programs strip ---------- */
+const PK = { affiliate: "handshake", ambassador: "users", other: "sparkles" };
+async function loadPrograms() {
+  const { data } = await sb.from("programs").select("id,title,kind").eq("status", "published").order("created_at", { ascending: false }).limit(10);
+  if (!data || !data.length) return;
+  $("progStrip").innerHTML = data.map((p) => `<a class="story" href="programs.html#${esc(p.id)}"><span class="ring"><span><i data-lucide="${PK[p.kind] || "sparkles"}" class="icon"></i></span></span><small>${esc(p.title)}</small></a>`).join("");
+  $("progStrip").classList.remove("hidden"); icons();
 }

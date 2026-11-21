@@ -22,3 +22,24 @@
 .av-grid button:hover,.av-grid button.sel{border-color:var(--green)}.av-grid img{width:100%;height:100%;object-fit:cover}
 @media (max-width:560px){.row2{grid-template-columns:1fr}.p-av{width:72px;height:72px}}
 .st-withdrawn{background:var(--soft);color:var(--mute);border:1px solid var(--line)}
+
+/* Profile navigation: side menu on desktop, Instagram-style list + back header on mobile */
+.pwrap{display:grid;grid-template-columns:240px minmax(0,1fr);gap:2.5rem;align-items:start}
+.pmenu{position:sticky;top:88px;display:grid;gap:.15rem}
+.pmenu a,.pmenu button{display:flex;align-items:center;gap:.8rem;padding:.65rem .75rem;border:0;background:none;border-radius:12px;font-size:.95rem;font-weight:500;color:var(--ink-2);cursor:pointer;text-align:left;width:100%}
+.pmenu a:hover,.pmenu button:hover{background:var(--soft)}
+.pmenu a.active{background:var(--green-50);color:var(--green-ink);font-weight:700}
+.mi{width:34px;height:34px;border-radius:10px;background:var(--soft);display:grid;place-items:center;color:var(--ink);flex:none}.pmenu a.active .mi{background:#fff;color:var(--green-ink)}
+.pmenu .chev{margin-left:auto;opacity:.4;display:none}.pmenu .danger{color:var(--red)}.pmenu hr{border:0;border-top:1px solid var(--line);margin:.4rem .5rem}
+.psub{display:none}
+@media (max-width:760px){
+  .pwrap{display:block}
+  .pmenu{position:static;border:1px solid var(--line);border-radius:16px;padding:.3rem;background:#fff;gap:0}
+  .pmenu a,.pmenu button{padding:.8rem .75rem}.pmenu .chev{display:block}
+  .pmenu a.active{background:none;color:var(--ink-2);font-weight:500}.pmenu a.active .mi{background:var(--soft);color:var(--ink)}
+  body.p-detail .p-head,body.p-detail .pmenu{display:none}
+  body:not(.p-detail) .pcontent{display:none}
+  .psub{position:sticky;top:64px;z-index:40;background:#fff;align-items:center;gap:.7rem;padding:.65rem 0;margin-bottom:1rem;border-bottom:1px solid var(--line)}
+  body.p-detail .psub{display:flex}
+  .psub button{width:38px;height:38px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;cursor:pointer;color:var(--ink)}.psub b{font-size:1.05rem}
+}

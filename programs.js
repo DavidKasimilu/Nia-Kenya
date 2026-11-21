@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   profile = p || {}; staff = ["admin", "moderator"].includes(p?.role);
   const n = (p?.full_name || user.email || "?").trim()[0].toUpperCase();
   $("avatarBtn").innerHTML = p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n);
+  if (window.NiaNav) NiaNav.setAvatar($("avatarBtn").innerHTML);
   $("menuName").textContent = p?.full_name || "Student"; $("menuEmail").textContent = user.email;
   if (staff) $("adminLink").classList.remove("hidden");
   $("avatarBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
@@ -32,6 +33,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   items = pg.data || []; joined = new Set((su.data || []).map((x) => x.program_id));
   $("list").onclick = (e) => { const b = e.target.closest("[data-p]"); if (b) openProgram(b.dataset.p); };
   render(pg.error);
+  const h = location.hash.slice(1); if (h && items.some((x) => x.id === h)) openProgram(h);
 });
 
 function render(err) {

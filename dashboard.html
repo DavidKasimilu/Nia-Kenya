@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="dash.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body data-page="home">
   <header class="topbar">
     <div class="container topbar-in has-search">
       <a href="dashboard.html" class="brand" aria-label="Nia"><img src="assets/images/logo2-tight.png" alt="Nia" width="40" height="40" /></a>
@@ -40,6 +40,7 @@
   <div class="notice hidden" id="announce"><div class="container"><i data-lucide="megaphone" class="icon"></i><span id="announceText"></span></div></div>
 
   <main class="container page">
+    <div class="stories hidden" id="progStrip" aria-label="Programs"></div>
     <div class="chips" id="chips"></div>
     <div class="count" id="count"></div>
     <div class="feed" id="feed"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
@@ -97,6 +98,7 @@
 
   <script src="alerts.js"></script>
   <script src="dashboard.js"></script>
+  <script src="nav.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>

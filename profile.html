@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="base.css" /><link rel="stylesheet" href="dash.css" /><link rel="stylesheet" href="profile.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body data-page="profile">
   <header class="topbar"><div class="container topbar-in">
     <a href="dashboard.html" class="brand" aria-label="Nia"><img src="assets/images/logo2-tight.png" alt="Nia" width="40" height="40" /></a>
     <nav class="top-links"><a href="dashboard.html">Opportunities</a><a href="programs.html">Programs</a><a href="profile.html" class="active">My profile</a></nav>
@@ -28,19 +28,25 @@
   </div></header>
 
   <main class="container page">
+    <div class="psub"><button id="pBack" aria-label="Back"><i data-lucide="chevron-left" class="icon"></i></button><b id="pTitle"></b></div>
     <div class="p-head">
       <button class="p-av" id="bigAvatar" aria-label="Change photo"></button>
       <div><h1 id="displayFullName">Loading…</h1><p id="displayEmail"></p></div>
     </div>
-    <div class="ptabs" role="tablist">
-      <button class="ptab active" data-tab="profile">Profile</button>
-      <button class="ptab" data-tab="applications">Applications</button>
-      <button class="ptab" data-tab="saved">Saved</button>
-      <button class="ptab" data-tab="alerts">Alerts</button>
-      <button class="ptab" data-tab="subscription">Subscription</button>
-      <button class="ptab" data-tab="affiliate">Affiliate</button>
-      <button class="ptab" data-tab="settings">Settings</button>
-    </div>
+    <div class="pwrap">
+      <nav class="pmenu" id="pmenu" aria-label="Profile sections">
+          <a href="#profile" data-tab="profile"><span class="mi"><i data-lucide="user" class="icon"></i></span><span>Profile details</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <a href="#applications" data-tab="applications"><span class="mi"><i data-lucide="file-text" class="icon"></i></span><span>Applications</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <a href="#saved" data-tab="saved"><span class="mi"><i data-lucide="bookmark" class="icon"></i></span><span>Saved</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <a href="#alerts" data-tab="alerts"><span class="mi"><i data-lucide="bell" class="icon"></i></span><span>Alerts</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <a href="#subscription" data-tab="subscription"><span class="mi"><i data-lucide="badge-check" class="icon"></i></span><span>Subscription</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <a href="#affiliate" data-tab="affiliate"><span class="mi"><i data-lucide="handshake" class="icon"></i></span><span>Affiliate program</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <a href="#settings" data-tab="settings"><span class="mi"><i data-lucide="settings" class="icon"></i></span><span>Settings</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <hr />
+          <a href="admin.html" id="pAdmin" class="hidden"><span class="mi"><i data-lucide="layout-dashboard" class="icon"></i></span><span>Admin console</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <button id="pSignout" class="danger"><span class="mi"><i data-lucide="log-out" class="icon"></i></span><span>Sign out</span></button>
+      </nav>
+      <div class="pcontent">
     <div id="statusMessage" class="message hidden" style="max-width:720px"></div>
 
     <section id="tab-profile">
@@ -89,6 +95,8 @@
       <div class="pcard"><h2>Session</h2><button class="btn btn-ghost" id="logoutBtn2"><i data-lucide="log-out" class="icon"></i> Sign out</button></div>
     <div class="pcard" style="border-color:#fecaca"><h2 style="color:var(--red)">Delete account</h2><p style="color:var(--ink-2);font-size:.92rem;margin-bottom:1rem">Permanently delete your account, profile, CV and applications. This cannot be undone.</p><button class="btn btn-danger" id="deleteAcctBtn"><i data-lucide="trash-2" class="icon"></i> Delete my account</button></div>
     </section>
+    </div>
+    </div>
   </main>
 
   <div id="avatarModal" class="modal-overlay hidden" role="dialog" aria-modal="true"><div class="modal sheet">
@@ -124,6 +132,7 @@
   <script src="paystack-config.js"></script>
   <script src="nia-pay.js"></script>
   <script src="profile.js"></script>
+  <script src="nav.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>

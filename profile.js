@@ -11,15 +11,21 @@ function say(text, err) { const m = $("statusMessage"); m.textContent = text; m.
 function initial() { return (profile.full_name || user.email || "?").trim()[0].toUpperCase(); }
 function paintAvatars() {
   const img = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" onerror="this.remove()">` : "";
-  $("avatarBtn").innerHTML = img || esc(initial());
+  $("avatarBtn").innerHTML = img || esc(initial()); if (window.NiaNav) NiaNav.setAvatar($("avatarBtn").innerHTML);
   $("bigAvatar").innerHTML = (img || esc(initial())) + `<span><i data-lucide="camera" class="icon"></i></span>`;
   $("displayFullName").textContent = profile.full_name || "Graduate"; $("menuName").textContent = profile.full_name || "Student"; icons();
 }
-function showTab(t) {
-  document.querySelectorAll(".ptab").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
-  ["profile", "applications", "saved", "alerts", "subscription", "affiliate", "settings"].forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
-  if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
+const TABS = ["profile", "applications", "saved", "alerts", "subscription", "affiliate", "settings"];
+const TAB_LABEL = { profile: "Profile details", applications: "Applications", saved: "Saved", alerts: "Alerts", subscription: "Subscription", affiliate: "Affiliate program", settings: "Settings" };
+function route() {
+  const h = location.hash.slice(1), mobile = matchMedia("(max-width: 760px)").matches;
+  const t = TABS.includes(h) ? h : mobile ? null : "profile";
+  document.body.classList.toggle("p-detail", !!t);
+  TABS.forEach((x) => $("tab-" + x).classList.toggle("hidden", x !== t));
+  document.querySelectorAll("#pmenu a[data-tab]").forEach((a) => a.classList.toggle("active", a.dataset.tab === t));
+  $("pTitle").textContent = TAB_LABEL[t] || ""; window.scrollTo(0, 0);
 }
+function showTab(t) { if (location.hash.slice(1) === t) route(); else location.hash = t; }
 const resumePath = (v) => (v && /^https?:/.test(v) ? pathOf(v, "resumes") : v || null);
 const pathOf = (url, bucket) => (url && url.includes(`/object/public/${bucket}/`) ? decodeURIComponent(url.split(`/object/public/${bucket}/`)[1].split("?")[0]) : null);
 
@@ -30,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   user = session.user;
   const { data } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (data?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
-  profile = data || {}; if (["admin", "moderator"].includes(profile.role)) $("adminLink").classList.remove("hidden");
+  profile = data || {}; if (["admin", "moderator"].includes(profile.role)) { $("adminLink").classList.remove("hidden"); $("pAdmin").classList.remove("hidden"); }
   $("displayEmail").textContent = $("menuEmail").textContent = $("profileEmail").value = user.email || "";
   $("profileFullName").value = profile.full_name || user.user_metadata?.full_name || "";
   [["Phone", "phone"], ["Whatsapp", "whatsapp"], ["County", "county"], ["Institution", "institution"], ["Course", "course"], ["Bio", "bio"]].forEach(([i, k]) => ($("profile" + i).value = profile[k] || ""));
@@ -39,9 +45,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("avatarBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
   document.addEventListener("click", (e) => { if (!$("menu").contains(e.target)) $("menu").classList.add("hidden"); });
   const out = async () => { await sb.auth.signOut(); location.href = "index.html"; };
-  $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out;
-  document.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
-  showTab(["applications", "saved", "alerts", "subscription", "affiliate", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "profile");
+  $("logoutBtn").onclick = out; $("logoutBtn2").onclick = out; $("pSignout").onclick = out;
+  $("pBack").onclick = () => { history.pushState(null, "", location.pathname); route(); };
+  window.addEventListener("hashchange", route); matchMedia("(max-width: 760px)").addEventListener("change", route);
+  route();
   $("profileForm").onsubmit = saveProfile; $("pwForm").onsubmit = changePw;
   $("profileResume").onchange = uploadCv;
   $("deleteCvBtn").onclick = () => $("confirmModal").classList.remove("hidden");
