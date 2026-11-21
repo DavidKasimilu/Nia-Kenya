@@ -54,11 +54,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("applyForm").onsubmit = submitApply; $("reportForm").onsubmit = submitReport;
   $("reportReason").innerHTML = `<option value="">Select a reason…</option>` + Object.entries(REASONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
 
-  const [a, s, f, n, su, pl, rq] = await Promise.all([
+  const [a, s, f, su, pl, rq] = await Promise.all([
     sb.from("applications").select("opportunity_id").eq("user_id", session.user.id),
     sb.from("saved_listings").select("opportunity_id").eq("user_id", session.user.id),
     sb.from("application_fields").select("*"),
-    sb.from("announcements").select("message").eq("active", true).order("created_at", { ascending: false }).limit(1),
     sb.from("subscriptions").select("paid_until").eq("user_id", session.user.id).maybeSingle(),
     sb.from("plans").select("*").eq("code", "monthly").maybeSingle(),
     sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle(),
@@ -66,7 +65,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   state.subActive = !!(su.data && new Date(su.data.paid_until) > new Date()); state.plan = pl.data; state.required = rq.data?.value === true;
   state.applied = new Set((a.data || []).map((x) => x.opportunity_id)); state.saved = new Set((s.data || []).map((x) => x.opportunity_id));
   (f.data || []).forEach((x) => (state.fields[x.key] = x));
-  if (n.data?.[0]) { $("announceText").textContent = n.data[0].message; $("announce").classList.remove("hidden"); }
   loadFeed(true); icons();
 });
 

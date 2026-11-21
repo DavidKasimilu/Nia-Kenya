@@ -26,7 +26,9 @@
       if (error) { list.innerHTML = `<div class="empty" style="border:0">Could not load notifications.</div>`; return; }
       list.innerHTML = (data || []).length ? data.map((n, i) => `<div class="ni ${i < unread ? "new" : ""} ${n.link && !/^[a-z]+:/i.test(n.link) ? "link" : ""}" data-l="${esc(n.link || "")}"><div class="mi2"><i data-lucide="${ICON[n.kind] || "bell"}" class="icon"></i></div><div><h4>${esc(n.title)}</h4>${n.body ? `<p>${esc(n.body)}</p>` : ""}<small>${ago(n.created_at)}</small></div></div>`).join("") : `<div class="empty" style="border:0">No notifications yet.</div>`;
       if (window.lucide) window.lucide.createIcons();
-      setBadge(0); sb.rpc("mark_notifications_seen");
+      setBadge(0);
+      const seen = await sb.rpc("mark_notifications_seen"); // must be awaited, or the request is never sent
+      if (seen.error) refresh();
     }
     btn.onclick = (e) => { e.stopPropagation(); panel.classList.contains("hidden") ? open() : close(); };
     document.getElementById("npClose").onclick = close;
