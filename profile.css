@@ -43,3 +43,4 @@
   body.p-detail .psub{display:flex}
   .psub button{width:38px;height:38px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;cursor:pointer;color:var(--ink)}.psub b{font-size:1.05rem}
 }
+.pbar{height:8px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:.6rem;max-width:260px}.pfill{height:100%;background:var(--green);width:0;transition:width .4s}.phint{font-size:.8rem;color:var(--mute);margin-top:.3rem}

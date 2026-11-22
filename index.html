@@ -6,6 +6,8 @@
   <title>Nia | Jobs, internships and attachments for Kenyan graduates</title>
   <meta name="description" content="Nia connects Kenyan graduates and students with verified entry-level jobs, internships and industrial attachments. Create a profile once and apply in a tap." />
   <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/favicon/apple-touch-icon.png" />
   <meta property="og:title" content="Nia | Opportunities for Kenyan graduates" />
   <meta property="og:description" content="Verified jobs, internships and attachments. Apply in a tap." />
   <meta property="og:type" content="website" />
@@ -96,7 +98,7 @@
       <div class="container">
         <div class="sec-head"><span class="eyebrow">FAQ</span><h2>Common questions</h2></div>
         <div class="faq">
-          <details><summary>What does Nia cost? <i data-lucide="plus" class="icon"></i></summary><p>Creating an account, building your profile and browsing opportunities are free. Applying to opportunities needs a Nia membership of KES 250 per month, paid by M-Pesa or card through Paystack. We never charge you automatically.</p></details>
+          <details><summary>What does Nia cost? <i data-lucide="plus" class="icon"></i></summary><p>Creating an account, building your profile and browsing opportunities are free. Applying to opportunities needs a Nia membership: KES 130 for 10 days, KES 250 for a month or KES 390 for 3 months, paid by M-Pesa or card through Paystack. We never charge you automatically.</p></details>
           <details><summary>Who can apply? <i data-lucide="plus" class="icon"></i></summary><p>Kenyan students and graduates looking for jobs, internships or attachments.</p></details>
           <details><summary>What details will employers see? <i data-lucide="plus" class="icon"></i></summary><p>Only what you submit with an application, such as your CV and the contact details the opportunity asks for.</p></details>
           <details><summary>I forgot my password. <i data-lucide="plus" class="icon"></i></summary><p>Use the Forgot password link on the sign-in form and we will email you a reset link.</p></details>
@@ -202,5 +204,6 @@
     $("navLinks").addEventListener("click", () => $("navLinks").classList.remove("open"));
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("closeModalBtn").click(); });
   </script>
+  <script src="pwa.js"></script>
 </body>
 </html>

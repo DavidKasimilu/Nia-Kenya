@@ -51,28 +51,65 @@ async function route() {
 
 /* ---------- Overview ---------- */
 async function overview() {
-  const [s, r] = await Promise.all([sb.rpc("admin_dashboard_stats"), sb.from("applications").select("id,user_email,created_at,opportunities(title)").order("created_at", { ascending: false }).limit(6)]);
+  const [s, r, rep] = await Promise.all([sb.rpc("admin_dashboard_stats"), sb.from("applications").select("id,user_email,created_at,opportunities(title)").order("created_at", { ascending: false }).limit(6), sb.from("listing_reports").select("id", { count: "exact", head: true }).eq("status", "open")]);
   if (s.error) throw s.error; const d = s.data, days = d.applications_by_day || [], max = Math.max(1, ...days.map((x) => x.count));
   const st = (i, l, v, n) => `<div class="stat"><div class="l"><i data-lucide="${i}" class="icon"></i>${l}</div><div class="v">${v}</div><div class="n">${n || "&nbsp;"}</div></div>`;
   $("view").innerHTML = head("Overview", "How Nia is doing right now.") +
-    `<div class="stats">${st("briefcase", "Open listings", d.opportunities_open, d.opportunities_total + " total")}${st("inbox", "Applications", d.applications_total, d.applications_new + " new, " + d.applications_7d + " this week")}${st("users", "Students", d.students_total, "+" + d.students_7d + " this week")}${st("user-x", "Banned", d.users_banned)}</div>
+    `<div class="stats">${st("briefcase", "Open listings", d.opportunities_open, d.opportunities_total + " total")}${st("inbox", "Applications", d.applications_total, d.applications_new + " new, " + d.applications_7d + " this week")}${st("users", "Students", d.students_total, "+" + d.students_7d + " this week")}${st("user-x", "Banned", d.users_banned)}<a class="stat" href="#reports" style="display:block"><div class="l"><i data-lucide="flag" class="icon"></i>Open reports</div><div class="v">${rep.count ?? 0}</div><div class="n">${rep.count ? "Needs review" : "All clear"}</div></a></div>
     <div class="cols"><div class="panel"><h2>Applications, last 14 days</h2><div class="chart">${days.map((x) => `<div style="height:${(x.count / max) * 100}%" data-t="${esc(x.day)}: ${x.count}"></div>`).join("")}</div></div>
     <div class="panel"><h2>Latest applications</h2>${(r.data || []).map((a) => `<p style="font-size:.88rem;margin-bottom:.6rem"><b>${esc(a.opportunities?.title || "Removed listing")}</b><br><span style="color:var(--mute)">${esc(a.user_email)} · ${dt(a.created_at)}</span></p>`).join("") || "<p style='color:var(--mute)'>Nothing yet.</p>"}</div></div>`;
 }
 
 /* ---------- Opportunities ---------- */
+function logoPath(u) { return u && u.includes("/object/public/listing-logos/") ? decodeURIComponent(u.split("/object/public/listing-logos/")[1].split("?")[0]) : null; }
+async function dropLogos(list, remaining) {
+  const keep = new Set((remaining || []).map((x) => x.logo_url).filter(Boolean));
+  const paths = list.map((o) => (keep.has(o.logo_url) ? null : logoPath(o.logo_url))).filter(Boolean);
+  if (paths.length) await sb.storage.from("listing-logos").remove([...new Set(paths)]);
+}
 async function opportunities() {
-  const { data, error } = await sb.from("opportunities").select("*").order("created_at", { ascending: false }); if (error) throw error;
-  $("view").innerHTML = head("Listings", "Create and manage opportunities.", `<button class="btn btn-green" id="newOpp"><i data-lucide="plus" class="icon"></i> New listing</button>`) +
-    `<div class="rows">${(data || []).map((o) => `<div class="r"><div class="grow"><h3>${esc(o.title)}</h3><p>${esc(o.company)} · ${esc(o.location)} · ${esc(o.type)}${o.deadline ? " · closes " + dt(o.deadline) : ""}</p></div>${badge(o.status)}
-      <div class="acts"><button class="ib" data-e="${esc(o.id)}" title="Edit"><i data-lucide="pencil" class="icon"></i><span>Edit</span></button><button class="ib" data-t="${esc(o.id)}" title="${o.status === "published" ? "Close" : "Publish"}"><i data-lucide="${o.status === "published" ? "lock" : "send"}" class="icon"></i><span>${o.status === "published" ? "Close" : "Publish"}</span></button>${isAdmin ? `<button class="ib d" data-d="${esc(o.id)}" title="Delete"><i data-lucide="trash-2" class="icon"></i><span>Delete</span></button>` : ""}</div></div>`).join("") || empty("No listings yet.")}</div>`;
-  $("newOpp").onclick = () => oppForm();
+  const [o, st] = await Promise.all([sb.from("opportunities").select("*").order("created_at", { ascending: false }), sb.rpc("admin_listing_stats")]);
+  if (o.error) throw o.error;
+  const data = o.data || [], S = Object.fromEntries((st.data || []).map((x) => [x.opportunity_id, x])), sel = new Set(); let lim = 25;
+  const btn = (k, id, icon, label, cls = "") => `<button class="ib ${cls}" data-${k}="${esc(id)}"><i data-lucide="${icon}" class="icon"></i><span>${label}</span></button>`;
+  const row = (x) => { const s = S[x.id] || {}, pub = x.status === "published"; return `<div class="r"><input type="checkbox" class="ck" data-k="${esc(x.id)}" ${sel.has(x.id) ? "checked" : ""} aria-label="Select listing"><div class="grow"><h3>${esc(x.title)}</h3><p>${esc(x.company)} · ${esc(x.location)} · ${esc(x.type)}${x.deadline ? " · closes " + dt(x.deadline) : ""}</p><p>${s.applicants ?? 0} applicants · ${s.saves ?? 0} saved${s.open_reports ? ` · <b style="color:var(--red)">${s.open_reports} open report(s)</b>` : ""}</p></div>${badge(x.status)}<div class="acts">${btn("e", x.id, "pencil", "Edit")}${btn("t", x.id, pub ? "lock" : "send", pub ? "Close" : "Publish")}${btn("c", x.id, "copy", "Duplicate")}${s.applicants ? btn("m", x.id, "mail", "Message") : ""}${isAdmin ? btn("d", x.id, "trash-2", "Delete", "d") : ""}</div></div>`; };
+  function bar() { $("bulk").style.display = sel.size ? "flex" : "none"; $("bulkN").textContent = sel.size + " selected"; }
+  function draw() { $("oRows").innerHTML = (data.slice(0, lim).map(row).join("") || empty("No listings yet.")) + (data.length > lim ? `<button class="btn btn-ghost" id="oMore">Show more (${data.length - lim} left)</button>` : ""); icons(); if ($("oMore")) $("oMore").onclick = () => { lim += 25; draw(); }; bar(); }
+  $("view").innerHTML = head("", "", `<button class="btn btn-green" id="newOpp"><i data-lucide="plus" class="icon"></i> New listing</button>`) +
+    `<div class="toolbar" id="bulk" style="display:none;align-items:center"><b id="bulkN"></b><button class="btn btn-ghost" data-bulk="published">Publish</button><button class="btn btn-ghost" data-bulk="closed">Close</button>${isAdmin ? `<button class="btn btn-ghost" data-bulk="delete" style="color:var(--red)">Delete</button>` : ""}<button class="btn btn-ghost" data-bulk="all">Select all</button><button class="btn btn-ghost" data-bulk="clear">Clear</button></div><div class="rows" id="oRows"></div>`;
+  draw(); $("newOpp").onclick = () => oppForm();
+  $("view").onchange = (e) => { const c = e.target.closest(".ck"); if (!c) return; c.checked ? sel.add(c.dataset.k) : sel.delete(c.dataset.k); bar(); };
   $("view").onclick = async (e) => {
-    const b = e.target.closest("button[data-e],button[data-t],button[data-d]"); if (!b) return;
-    const o = data.find((x) => x.id === (b.dataset.e || b.dataset.t || b.dataset.d));
-    if (b.dataset.e) return oppForm(o);
-    if (b.dataset.t) { const ns = o.status === "published" ? "closed" : "published"; const { error } = await sb.from("opportunities").update({ status: ns }).eq("id", o.id); if (error) return toast(error.message); await log("opportunity." + ns, "opportunity", o.id, { title: o.title }); toast("Listing " + ns + "."); return route(); }
-    if (await confirmBox("Delete listing?", `"${o.title}" and all its applications will be removed.`, "Delete")) { const { error } = await sb.from("opportunities").delete().eq("id", o.id); if (error) return toast(error.message); await log("opportunity.delete", "opportunity", o.id, { title: o.title }); toast("Deleted."); route(); }
+    const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
+    if (d.bulk) {
+      const ids = [...sel];
+      if (d.bulk === "all") { data.forEach((x) => sel.add(x.id)); return draw(); }
+      if (d.bulk === "clear") { sel.clear(); return draw(); }
+      if (!ids.length) return;
+      if (d.bulk === "delete") {
+        if (!(await confirmBox("Delete " + ids.length + " listing(s)?", "Their applications will be removed too.", "Delete"))) return;
+        await dropLogos(data.filter((x) => sel.has(x.id)), data.filter((x) => !sel.has(x.id)));
+        const { error } = await sb.from("opportunities").delete().in("id", ids); if (error) return toast(error.message);
+        await log("opportunity.bulk_delete", "opportunity", "", { count: ids.length }); toast("Deleted."); return route();
+      }
+      const { error } = await sb.from("opportunities").update({ status: d.bulk }).in("id", ids); if (error) return toast(error.message);
+      await log("opportunity.bulk_" + d.bulk, "opportunity", "", { count: ids.length }); toast("Done."); return route();
+    }
+    const x = data.find((y) => y.id === (d.e || d.t || d.c || d.m || d.d)); if (!x) return;
+    if (d.e) return oppForm(x);
+    if (d.c) return oppForm({ ...x, id: undefined, created_at: undefined, title: "Copy of " + x.title, status: "draft" });
+    if (d.t) { const ns = x.status === "published" ? "closed" : "published"; const { error } = await sb.from("opportunities").update({ status: ns }).eq("id", x.id); if (error) return toast(error.message); await log("opportunity." + ns, "opportunity", x.id, { title: x.title }); toast("Listing " + ns + "."); return route(); }
+    if (d.m) {
+      openModal(`<button class="close-btn" id="mx"><i data-lucide="x" class="icon"></i></button><h2>Message applicants</h2><p class="sub">${esc(x.title)}: ${S[x.id]?.applicants ?? 0} applicant(s) will see this in their notifications.</p><div id="fm" class="message hidden"></div><div class="form-group"><label>Title</label><input id="mT" maxlength="120"></div><div class="form-group"><label>Message</label><textarea id="mB" rows="4" maxlength="500"></textarea></div><button class="btn btn-submit" id="mGo">Send</button>`);
+      $("mx").onclick = closeModal;
+      $("mGo").onclick = async () => { const t = $("mT").value.trim(), fail = (s) => { const m = $("fm"); m.className = "message error"; m.textContent = s; }; if (!t) return fail("Add a title."); const r = await sb.rpc("admin_message_applicants", { p_opp: x.id, p_title: t, p_body: $("mB").value.trim() || null }); if (r.error) return fail(r.error.message); closeModal(); toast("Sent to " + r.data + " applicant(s)."); };
+      return;
+    }
+    if (d.d && (await confirmBox("Delete listing?", `"${x.title}" and all its applications will be removed.`, "Delete"))) {
+      await dropLogos([x], data.filter((y) => y.id !== x.id));
+      const { error } = await sb.from("opportunities").delete().eq("id", x.id); if (error) return toast(error.message);
+      await log("opportunity.delete", "opportunity", x.id, { title: x.title }); toast("Deleted."); route();
+    }
   };
 }
 function oppForm(o = {}) {
@@ -99,10 +136,12 @@ function oppForm(o = {}) {
       const path = `${crypto.randomUUID()}.${ext}`, up = await sb.storage.from("listing-logos").upload(path, file, { contentType: file.type });
       if (up.error) return bad("Logo upload failed: " + up.error.message);
       row.logo_url = sb.storage.from("listing-logos").getPublicUrl(path).data.publicUrl;
-    } else if (f.get("rmlogo")) row.logo_url = null;
+    } else if (f.get("rmlogo")) row.logo_url = null; else if (!o.id && o.logo_url) row.logo_url = o.logo_url;
     const q = o.id ? sb.from("opportunities").update(row).eq("id", o.id).select("id").single() : sb.from("opportunities").insert([row]).select("id").single();
     const { data, error } = await q; $("sv").disabled = false;
     if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.message; return; }
+    const oldLogo = o.id ? logoPath(o.logo_url) : null;
+    if (oldLogo && (row.logo_url === null || (row.logo_url && row.logo_url !== o.logo_url))) { const { count } = await sb.from("opportunities").select("id", { count: "exact", head: true }).eq("logo_url", o.logo_url).neq("id", data.id); if (!count) await sb.storage.from("listing-logos").remove([oldLogo]); }
     await log(o.id ? "opportunity.update" : "opportunity.create", "opportunity", data.id, { title: row.title }); closeModal(); toast("Saved."); route();
   };
 }
@@ -113,18 +152,27 @@ async function applications() {
   if (a.error) throw a.error; const ids = [...new Set(a.data.map((x) => x.user_id).filter(Boolean))];
   const pr = ids.length ? (await sb.from("profiles").select("id,full_name,phone,whatsapp,county,institution,course,resume_url").in("id", ids)).data || [] : [];
   const P = Object.fromEntries(pr.map((x) => [x.id, x])); let list = a.data;
-  let lim = 25;
+  let lim = 25; const selA = new Set();
   const draw = () => {
     const fo = $("fOpp").value, fs = $("fSt").value, q = $("fQ").value.toLowerCase();
     list = a.data.filter((x) => (!fo || x.opportunity_id === fo) && (!fs || x.status === fs) && (!q || (x.user_email + " " + (P[x.user_id]?.full_name || "")).toLowerCase().includes(q)));
-    $("appRows").innerHTML = (list.slice(0, lim).map((x) => `<div class="r" data-a="${esc(x.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(P[x.user_id]?.full_name || x.user_email)}</h3><p>${esc(x.opportunities?.title || "Removed listing")} · ${dt(x.created_at)}</p></div>${badge(x.status)}<span class="ib"><i data-lucide="pencil" class="icon"></i><span>Update</span></span></div>`).join("") || empty("No applications match.")) + (list.length > lim ? `<button class="btn btn-ghost" id="appMore">Show more (${list.length - lim} left)</button>` : "");
+    $("appRows").innerHTML = (list.slice(0, lim).map((x) => `<div class="r" data-a="${esc(x.id)}" style="cursor:pointer"><input type="checkbox" class="ck" data-k="${esc(x.id)}" ${selA.has(x.id) ? "checked" : ""} aria-label="Select applicant"><div class="grow"><h3>${esc(P[x.user_id]?.full_name || x.user_email)}</h3><p>${esc(x.opportunities?.title || "Removed listing")} · ${dt(x.created_at)}</p></div>${badge(x.status)}<span class="ib"><i data-lucide="pencil" class="icon"></i><span>Update</span></span></div>`).join("") || empty("No applications match.")) + (list.length > lim ? `<button class="btn btn-ghost" id="appMore">Show more (${list.length - lim} left)</button>` : "");
     if ($("appMore")) $("appMore").onclick = () => { lim += 25; draw(); };
     icons();
   };
   $("view").innerHTML = head("Applicants", "Review and contact applicants.", `<button class="btn btn-ghost" id="csv"><i data-lucide="download" class="icon"></i> Export CSV</button>`) +
-    `<div class="toolbar"><input id="fQ" placeholder="Search name or email"><select id="fOpp"><option value="">All listings</option>${o.data.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join("")}</select><select id="fSt"><option value="">All statuses</option>${[...ST, "withdrawn"].map((s) => `<option>${s}</option>`).join("")}</select></div><div class="rows" id="appRows"></div>`;
+    `<div class="toolbar"><input id="fQ" placeholder="Search name or email"><select id="fOpp"><option value="">All listings</option>${o.data.map((x) => `<option value="${esc(x.id)}">${esc(x.title)}</option>`).join("")}</select><select id="fSt"><option value="">All statuses</option>${[...ST, "withdrawn"].map((s) => `<option>${s}</option>`).join("")}</select></div><div class="toolbar" id="aBulk" style="display:none;align-items:center"><b id="aBulkN"></b><select id="aBulkSt" class="sel">${ST.map((s) => `<option>${s}</option>`).join("")}</select><button class="btn btn-primary" id="aBulkGo">Set status</button><button class="btn btn-ghost" id="aBulkClr">Clear</button></div><div class="rows" id="appRows"></div>`;
   ["fQ", "fOpp", "fSt"].forEach((i) => ($(i).oninput = () => { lim = 25; draw(); })); draw();
-  $("appRows").onclick = (e) => { const r = e.target.closest("[data-a]"); if (r) appDetail(list.find((x) => x.id === r.dataset.a), P[list.find((x) => x.id === r.dataset.a).user_id] || {}); };
+  const aBar = () => { $("aBulk").style.display = selA.size ? "flex" : "none"; $("aBulkN").textContent = selA.size + " selected"; };
+  $("appRows").onchange = (e) => { const c = e.target.closest(".ck"); if (!c) return; c.checked ? selA.add(c.dataset.k) : selA.delete(c.dataset.k); aBar(); };
+  $("aBulkClr").onclick = () => { selA.clear(); draw(); aBar(); };
+  $("aBulkGo").onclick = async () => {
+    const ids = [...selA], status = $("aBulkSt").value; if (!ids.length) return;
+    if (!(await confirmBox("Set " + ids.length + " application(s) to " + status + "?", "Students get an email when the status becomes shortlisted, contacted or rejected.", "Update"))) return;
+    const { error } = await sb.from("applications").update({ status }).in("id", ids); if (error) return toast(error.message);
+    await log("application.bulk_status", "application", "", { count: ids.length, status }); toast("Updated."); route();
+  };
+  $("appRows").onclick = (e) => { if (e.target.closest(".ck")) return; const r = e.target.closest("[data-a]"); if (r) appDetail(list.find((x) => x.id === r.dataset.a), P[list.find((x) => x.id === r.dataset.a).user_id] || {}); };
   $("csv").onclick = () => {
     const keys = [...new Set(list.flatMap((x) => Object.keys(x.answers || {})))], q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = [["Listing", "Company", "Name", "Email", "Phone", "Status", "Applied", ...keys]].concat(list.map((x) => [x.opportunities?.title, x.opportunities?.company, P[x.user_id]?.full_name, x.user_email, P[x.user_id]?.phone, x.status, new Date(x.created_at).toISOString().slice(0, 10), ...keys.map((k) => (x.answers || {})[k])]));
@@ -160,7 +208,7 @@ async function users() {
     const b = e.target.closest("button"); if (!b) return; const u = data.find((x) => x.id === (b.dataset.b || b.dataset.x || b.dataset.m));
     if (b.dataset.m) { const nr = u.role === "moderator" ? "student" : "moderator"; const { error } = await sb.from("profiles").update({ role: nr }).eq("id", u.id); if (error) return toast(error.message); await log("user.role", "user", u.id, { email: u.email, role: nr }); toast("Role set to " + nr + "."); return route(); }
     if (b.dataset.b) { const ns = u.status === "banned" ? "active" : "banned"; if (ns === "banned" && !(await confirmBox("Ban this user?", u.email + " will lose access immediately.", "Ban"))) return; const { error } = await sb.from("profiles").update({ status: ns }).eq("id", u.id); if (error) return toast(error.message); await log("user." + (ns === "banned" ? "ban" : "unban"), "user", u.id, { email: u.email }); toast("User " + ns + "."); return route(); }
-    if (await confirmBox("Delete this user?", u.email + " and all their applications will be permanently removed.", "Delete")) { const { error } = await sb.rpc("delete_user_by_admin", { target_user_id: u.id }); if (error) return toast(error.message); toast("User deleted."); route(); }
+    if (await confirmBox("Delete this user?", u.email + " and all their applications will be permanently removed.", "Delete")) { for (const bucket of ["resumes", "avatars"]) { const { data: fl } = await sb.storage.from(bucket).list(u.id); if (fl && fl.length) await sb.storage.from(bucket).remove(fl.map((f) => `${u.id}/${f.name}`)); } const { error } = await sb.rpc("delete_user_by_admin", { target_user_id: u.id }); if (error) return toast(error.message); toast("User deleted."); route(); }
   };
 }
 
@@ -264,18 +312,18 @@ async function billingView() {
   const since = new Date(Date.now() - 30 * 864e5).toISOString();
   const [st, pl, py, act, rev] = await Promise.all([
     sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle(),
-    sb.from("plans").select("*").eq("code", "monthly").maybeSingle(),
+    sb.from("plans").select("*").order("sort_order"),
     sb.from("payments").select("*").order("created_at", { ascending: false }).limit(50),
     sb.from("subscriptions").select("user_id", { count: "exact", head: true }).gt("paid_until", new Date().toISOString()),
     sb.from("payments").select("amount_kes").eq("source", "paystack").gte("created_at", since).limit(5000),
   ]);
-  const on = st.data?.value === true, plan = pl.data || { amount_kes: 250 }, list = py.data || [], rev30 = (rev.data || []).reduce((s, p) => s + Number(p.amount_kes), 0);
+  const on = st.data?.value === true, plans = pl.data || [], list = py.data || [], rev30 = (rev.data || []).reduce((s, p) => s + Number(p.amount_kes), 0);
   const ids = [...new Set(list.map((p) => p.user_id).filter(Boolean))], pr = ids.length ? (await sb.from("profiles").select("id,email").in("id", ids)).data || [] : [], E = Object.fromEntries(pr.map((x) => [x.id, x.email]));
   const stat = (i, l, v, n) => `<div class="stat"><div class="l"><i data-lucide="${i}" class="icon"></i>${l}</div><div class="v">${v}</div><div class="n">${n || "&nbsp;"}</div></div>`;
   $("view").innerHTML = head("Billing", "Membership settings and payments.") +
     `<div class="stats" style="grid-template-columns:repeat(3,1fr)">${stat("users", "Active members", act.count ?? 0)}${stat("banknote", "Revenue, last 30 days", "KES " + rev30.toLocaleString("en-KE"), "Paystack payments")}${stat("lock", "Paywall", on ? "ON" : "OFF", on ? "Applying needs a membership" : "Everyone applies free")}</div>
     <div class="cols"><div class="panel"><h2>Paywall</h2><p style="color:var(--ink-2);font-size:.9rem;margin-bottom:1rem">${on ? "Students need an active membership to apply." : "Everyone can apply for free. Turn this on when you are ready to charge."}</p><button class="btn ${on ? "btn-ghost" : "btn-green"}" id="payToggle">${on ? "Turn paywall off" : "Turn paywall on"}</button>
-    <h2 style="margin-top:1.4rem">Monthly price (KES)</h2><div class="toolbar"><input type="number" id="planAmt" min="1" value="${esc(plan.amount_kes)}"><button class="btn btn-primary" id="planSave">Save</button></div></div>
+    <h2 style="margin-top:1.4rem">Plan prices (KES)</h2>${plans.map((p) => `<div class="toolbar" style="align-items:center"><span style="min-width:90px">${esc(p.name)}</span><input type="number" min="1" data-pa="${esc(p.code)}" value="${esc(p.amount_kes)}" style="max-width:110px;flex:none;min-width:0"><button class="btn btn-primary" data-ps="${esc(p.code)}">Save</button></div>`).join("")}</div>
     <div class="panel"><h2>Give free membership</h2><form id="grantForm"><div class="form-group"><label>Student email</label><input id="gEmail" type="email" required></div><div class="form-group"><label>Days</label><input id="gDays" type="number" min="1" max="365" value="30" required></div><div class="form-group"><label>Note (optional)</label><input id="gNote"></div><button class="btn btn-primary">Grant</button></form></div></div>
     <h2 style="margin:1.5rem 0 .75rem;font-size:1.05rem">Recent payments</h2><div class="rows">${list.map((p) => `<div class="r"><div class="grow"><h3>${p.source === "admin_grant" ? "Free membership" : "KES " + Number(p.amount_kes)}</h3><p>${esc(E[p.user_id] || "deleted account")} · ${dt(p.created_at)} · ${p.days_added} days</p></div>${badge(p.source === "admin_grant" ? "off" : "active").replace("off", "gift").replace("active", "paid")}</div>`).join("") || empty("No payments yet.")}</div>`;
   $("payToggle").onclick = async () => {
@@ -283,7 +331,7 @@ async function billingView() {
     const { error } = await sb.from("app_settings").upsert({ key: "subscriptions_required", value: !on, updated_at: new Date().toISOString() }); if (error) return toast(error.message);
     await log("paywall." + (on ? "off" : "on"), "settings", "subscriptions_required"); toast("Paywall " + (on ? "off" : "on") + "."); route();
   };
-  $("planSave").onclick = async () => { const v = parseInt($("planAmt").value, 10); if (!(v > 0)) return toast("Enter a valid price."); const { error } = await sb.from("plans").update({ amount_kes: v }).eq("code", "monthly"); if (error) return toast(error.message); await log("plan.price", "plan", "monthly", { amount_kes: v }); toast("Price updated."); };
+  $("view").onclick = async (e) => { const b = e.target.closest("[data-ps]"); if (!b) return; const code = b.dataset.ps, v = parseInt(document.querySelector(`[data-pa="${code}"]`).value, 10); if (!(v > 0)) return toast("Enter a valid price."); const { error } = await sb.from("plans").update({ amount_kes: v }).eq("code", code); if (error) return toast(error.message); await log("plan.price", "plan", code, { amount_kes: v }); toast("Price updated."); };
   $("grantForm").onsubmit = async (e) => { e.preventDefault(); const { error } = await sb.rpc("admin_grant_subscription", { p_email: $("gEmail").value.trim(), p_days: parseInt($("gDays").value, 10), p_note: $("gNote").value.trim() || null }); if (error) return toast(error.message); toast("Membership granted."); route(); };
 }
 

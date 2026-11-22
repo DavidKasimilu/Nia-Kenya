@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My profile | Nia</title>
   <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/favicon/apple-touch-icon.png" />
   <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -32,7 +34,8 @@
     <div class="psub"><button id="pBack" aria-label="Back"><i data-lucide="chevron-left" class="icon"></i></button><b id="pTitle"></b></div>
     <div class="p-head">
       <button class="p-av" id="bigAvatar" aria-label="Change photo"></button>
-      <div><h1 id="displayFullName">Loading…</h1><p id="displayEmail"></p></div>
+      <div><h1 id="displayFullName">Loading…</h1><p id="displayEmail"></p>
+        <div class="pbar hidden" id="pBar"><div class="pfill" id="pFill"></div></div><p class="phint" id="pHint"></p></div>
     </div>
     <div class="pwrap">
       <nav class="pmenu" id="pmenu" aria-label="Profile sections">
@@ -43,6 +46,7 @@
           <a href="#subscription" data-tab="subscription"><span class="mi"><i data-lucide="badge-check" class="icon"></i></span><span>Subscription</span><i data-lucide="chevron-right" class="icon chev"></i></a>
           <a href="#affiliate" data-tab="affiliate"><span class="mi"><i data-lucide="handshake" class="icon"></i></span><span>Affiliate program</span><i data-lucide="chevron-right" class="icon chev"></i></a>
           <a href="#settings" data-tab="settings"><span class="mi"><i data-lucide="settings" class="icon"></i></span><span>Settings</span><i data-lucide="chevron-right" class="icon chev"></i></a>
+          <button id="pInstall" data-install class="hidden"><span class="mi"><i data-lucide="download" class="icon"></i></span><span>Install app</span></button>
           <hr />
           <a href="admin.html" id="pAdmin" class="hidden"><span class="mi"><i data-lucide="layout-dashboard" class="icon"></i></span><span>Admin console</span><i data-lucide="chevron-right" class="icon chev"></i></a>
           <button id="pSignout" class="danger"><span class="mi"><i data-lucide="log-out" class="icon"></i></span><span>Sign out</span></button>
@@ -130,6 +134,7 @@
   </div></div>
 
   <script src="alerts.js"></script>
+  <script src="plans-ui.js"></script>
   <script src="paystack-config.js"></script>
   <script src="nia-pay.js"></script>
   <script>
@@ -142,5 +147,6 @@
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>
+  <script src="pwa.js"></script>
 </body>
 </html>

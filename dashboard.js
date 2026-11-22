@@ -59,10 +59,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     sb.from("saved_listings").select("opportunity_id").eq("user_id", session.user.id),
     sb.from("application_fields").select("*"),
     sb.from("subscriptions").select("paid_until").eq("user_id", session.user.id).maybeSingle(),
-    sb.from("plans").select("*").eq("code", "monthly").maybeSingle(),
+    sb.from("plans").select("*").eq("active", true).order("sort_order"),
     sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle(),
   ]);
-  state.subActive = !!(su.data && new Date(su.data.paid_until) > new Date()); state.plan = pl.data; state.required = rq.data?.value === true;
+  state.subActive = !!(su.data && new Date(su.data.paid_until) > new Date()); state.plans = pl.data || []; state.plan = state.plans.find((p) => p.code === "monthly") || state.plans[0] || null; state.required = rq.data?.value === true;
   state.applied = new Set((a.data || []).map((x) => x.opportunity_id)); state.saved = new Set((s.data || []).map((x) => x.opportunity_id));
   (f.data || []).forEach((x) => (state.fields[x.key] = x));
   loadFeed(true); icons();
@@ -147,21 +147,23 @@ async function submitApply(e) {
 }
 
 /* ---------- Membership paywall ---------- */
-function openPaywall(o) {
-  state.current = o; $("payFor").textContent = `To apply for ${o.title}, you need an active membership.`;
-  $("payPrice").textContent = "KES " + (state.plan?.amount_kes ?? 250); $("payMsg").classList.add("hidden");
+function openPaywall(o, after) {
+  state.current = o; state.afterPay = after || null;
+  $("payFor").textContent = o ? `To apply for ${o.title}, you need an active membership.` : "Choose a membership to get alerts and apply to opportunities.";
+  $("payPlans").innerHTML = NiaPlans.html(state.plans, state.plan?.code); NiaPlans.bind($("payPlans")); $("payMsg").classList.add("hidden");
   $("payGo").disabled = false; $("payGo").textContent = "Subscribe with M-Pesa or card"; $("payModal").classList.remove("hidden"); icons();
 }
 function payErr(t) { const m = $("payMsg"); m.className = "message error"; m.textContent = t; $("payGo").disabled = false; $("payGo").textContent = "Subscribe with M-Pesa or card"; }
 async function startPayment() {
-  if (!state.plan) return payErr("Membership is not available right now.");
+  const plan = state.plans.find((p) => p.code === NiaPlans.selected($("payPlans"))) || state.plan;
+  if (!plan) return payErr("Membership is not available right now.");
   $("payGo").disabled = true; $("payMsg").classList.add("hidden");
   await NiaPay.subscribe({
-    sb, user: state.user, plan: state.plan,
+    sb, user: state.user, plan,
     onBusy: (v) => ($("payGo").textContent = v ? "Confirming your payment…" : "Subscribe with M-Pesa or card"),
     onClose: () => { if (!state.subActive) $("payGo").disabled = false; },
     onError: payErr,
-    onDone: () => { state.subActive = true; $("payModal").classList.add("hidden"); toast("You are subscribed. Welcome!"); openApply(state.current.id); },
+    onDone: () => { state.subActive = true; $("payModal").classList.add("hidden"); toast("You are subscribed. Welcome!"); if (state.afterPay) { const f = state.afterPay; state.afterPay = null; f(); } else if (state.current) openApply(state.current.id); },
   });
 }
 
@@ -189,25 +191,14 @@ async function openAlert(auto) {
   if (!state.required || state.subActive) renderAlertForm(pre); else renderAlertPitch(pre, auto);
 }
 function renderAlertPitch(pre, auto) {
-  const price = state.plan?.amount_kes ?? 250;
   $("alertBody").innerHTML = `<h2>Do not miss the right one</h2><p class="sub">${auto ? "You did not find a match today. " : ""}Subscribe and we will email you when a new opportunity matches what you are looking for.</p>
-    <div class="price"><b>KES ${price}</b><span> / month</span></div>
+    <div class="price"><span>From </span><b>KES ${NiaPlans.min(state.plans)}</b></div>
     <ul class="perks"><li><i data-lucide="bell" class="icon"></i> A daily email when new matches are posted</li><li><i data-lucide="sliders-horizontal" class="icon"></i> Choose the types, keyword and location you care about</li><li><i data-lucide="check" class="icon"></i> Apply to any listing, as many as you like</li></ul>
-    <div id="alMsg" class="message hidden"></div>
-    <button class="btn btn-green btn-lg" id="alSub" style="width:100%">Subscribe with M-Pesa or card</button>
+    <button class="btn btn-green btn-lg" id="alSub" style="width:100%">See membership options</button>
     <button class="btn btn-ghost" id="alLater" style="width:100%;margin-top:.5rem">Maybe later</button>
     <p class="fine">No automatic charges. Secure payment by Paystack.</p>`;
-  icons();
-  const err = (t) => { const m = $("alMsg"); m.className = "message error"; m.textContent = t; $("alSub").disabled = false; $("alSub").textContent = "Subscribe with M-Pesa or card"; };
-  $("alLater").onclick = closeAll;
-  $("alSub").onclick = async () => {
-    if (!state.plan) return err("Membership is not available right now.");
-    $("alSub").disabled = true;
-    await NiaPay.subscribe({ sb, user: state.user, plan: state.plan,
-      onBusy: (v) => ($("alSub").textContent = v ? "Confirming your payment…" : "Subscribe with M-Pesa or card"),
-      onClose: () => { if (!state.subActive) $("alSub").disabled = false; }, onError: err,
-      onDone: () => { state.subActive = true; toast("You are subscribed. Welcome!"); renderAlertForm(pre); } });
-  };
+  icons(); $("alLater").onclick = closeAll;
+  $("alSub").onclick = () => { closeAll(); openPaywall(null, () => { $("alertModal").classList.remove("hidden"); renderAlertForm(pre); }); };
 }
 function renderAlertForm(pre) {
   $("alertBody").innerHTML = `<h2>Get notified</h2><p class="sub">We send one email a day when new opportunities match.</p><div id="alMsg" class="message hidden"></div>${NiaAlerts.formHtml(pre)}<button class="btn btn-submit" id="alSave">Save alert</button>`;

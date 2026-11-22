@@ -13,7 +13,7 @@ function paintAvatars() {
   const img = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" onerror="this.remove()">` : "";
   $("avatarBtn").innerHTML = img || esc(initial()); if (window.NiaNav) NiaNav.setAvatar($("avatarBtn").innerHTML);
   $("bigAvatar").innerHTML = (img || esc(initial())) + `<span><i data-lucide="camera" class="icon"></i></span>`;
-  $("displayFullName").textContent = profile.full_name || "Graduate"; $("menuName").textContent = profile.full_name || "Student"; icons();
+  completeness(); $("displayFullName").textContent = profile.full_name || "Graduate"; $("menuName").textContent = profile.full_name || "Student"; icons();
 }
 const TABS = ["profile", "applications", "saved", "alerts", "subscription", "affiliate", "settings"];
 const TAB_LABEL = { profile: "Profile details", applications: "Applications", saved: "Saved", alerts: "Alerts", subscription: "Subscription", affiliate: "Affiliate program", settings: "Settings" };
@@ -72,7 +72,13 @@ async function saveProfile(e) {
   Object.assign(profile, row); paintAvatars(); say("Profile saved.");
 }
 
+function completeness() {
+  const need = [["full_name", "your name"], ["phone", "your phone number"], ["county", "your county"], ["institution", "your institution"], ["course", "your course"], ["bio", "a short bio"], ["resume_url", "your CV"]];
+  const miss = need.filter(([k]) => !String(profile[k] || "").trim()), pct = Math.round(((need.length - miss.length) / need.length) * 100);
+  if ($("pFill")) { $("pFill").style.width = pct + "%"; $("pHint").textContent = miss.length ? `Profile ${pct}% complete. Add ${miss[0][1]}.` : "Your profile is complete."; $("pBar").classList.remove("hidden"); }
+}
 function renderCv() {
+  completeness();
   const u = profile.resume_url;
   $("resumeStatus").innerHTML = u ? `<a href="#" id="viewCv">View current CV</a>` : `<span style="color:var(--mute)">No CV uploaded yet</span>`;
   if (u) $("viewCv").onclick = viewCv;
@@ -187,38 +193,36 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ---------- Subscription ---------- */
-let subPlan = null;
+let subPlans = [];
 async function loadSub() {
   const box = $("subBox");
   const [pl, su, py, rq] = await Promise.all([
-    sb.from("plans").select("*").eq("code", "monthly").maybeSingle(),
+    sb.from("plans").select("*").eq("active", true).order("sort_order"),
     sb.from("subscriptions").select("paid_until").eq("user_id", user.id).maybeSingle(),
     sb.from("payments").select("created_at,amount_kes,source,days_added").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
     sb.from("app_settings").select("value").eq("key", "subscriptions_required").maybeSingle(),
   ]);
-  subPlan = pl.data; const end = su.data ? new Date(su.data.paid_until) : null, active = !!end && end > new Date(), staff = ["admin", "moderator"].includes(profile.role), price = subPlan?.amount_kes ?? 250;
+  subPlans = pl.data || []; const end = su.data ? new Date(su.data.paid_until) : null, active = !!end && end > new Date(), staff = ["admin", "moderator"].includes(profile.role);
   const fmt = (d) => new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
   box.innerHTML = `<div class="pcard"><h2>Membership</h2>
     ${staff ? `<p style="color:var(--ink-2)">Staff accounts do not need a membership.</p>` : `
     <p style="margin-bottom:.4rem">${active ? `<span class="badge">Active</span> until <b>${fmt(end)}</b>` : `<span class="badge gray">Not subscribed</span>`}</p>
-    <p style="color:var(--ink-2);font-size:.92rem;margin-bottom:1rem">${rq.data?.value === true ? "A membership lets you apply to opportunities." : "Applications are free for now. Membership will be required soon."} It costs <b>KES ${price}</b> for 30 days, paid by M-Pesa or card through Paystack. We never charge you automatically, and we email you before it ends.</p>
+    <p style="color:var(--ink-2);font-size:.92rem;margin-bottom:.4rem">${rq.data?.value === true ? "A membership lets you apply to opportunities." : "Applications are free for now. Membership will be required soon."} Choose how long you want. Pay by M-Pesa or card through Paystack. We never charge you automatically, and we email you before it ends.</p>
+    <div id="subPlans">${NiaPlans.html(subPlans, "monthly")}</div>
     <div id="subMsg" class="message hidden"></div>
-    <button class="btn btn-green" id="subGo">${active ? "Add 30 more days" : "Subscribe for KES " + price}</button>
+    <button class="btn btn-green" id="subGo">${active ? "Extend membership" : "Subscribe"}</button>
     ${NiaPay.lastRef() ? `<button class="btn btn-ghost" id="subCheck" style="margin-left:.5rem">Check my last payment</button>` : ""}`}
   </div>
   <div class="pcard"><h2>Payment history</h2>${(py.data || []).length ? py.data.map((p) => `<div class="app" style="padding:.7rem 1rem"><div class="grow"><h3>${p.source === "admin_grant" ? "Free membership" : "KES " + Number(p.amount_kes)}</h3><p>${fmt(p.created_at)} · ${p.days_added} days</p></div></div>`).join("") : `<p style="color:var(--mute);font-size:.9rem">No payments yet.</p>`}</div>`;
   const msg = (t, err) => { const m = $("subMsg"); if (!m) return; m.className = "message " + (err ? "error" : "info"); m.textContent = t; };
+  if ($("subPlans")) NiaPlans.bind($("subPlans"));
   if ($("subGo")) $("subGo").onclick = async () => {
-    if (!subPlan) return msg("Membership is not available right now.", true);
+    const plan = subPlans.find((x) => x.code === NiaPlans.selected($("subPlans"))); if (!plan) return msg("Membership is not available right now.", true);
     $("subGo").disabled = true;
-    await NiaPay.subscribe({ sb, user, plan: subPlan, onClose: () => ($("subGo") && ($("subGo").disabled = false)), onError: (t) => { msg(t, true); $("subGo").disabled = false; }, onBusy: (v) => v && msg("Confirming your payment…"), onDone: () => { say("Membership active. Thank you!"); loadSub(); } });
+    await NiaPay.subscribe({ sb, user, plan, onClose: () => ($("subGo") && ($("subGo").disabled = false)), onError: (t) => { msg(t, true); $("subGo").disabled = false; }, onBusy: (v) => v && msg("Confirming your payment…"), onDone: () => { say("Membership active. Thank you!"); loadSub(); } });
   };
   if ($("subCheck")) $("subCheck").onclick = async () => { const r = await NiaPay.recheck(sb); if (r.error) return msg(r.error.message, true); say("Payment confirmed."); loadSub(); };
 }
-
-const TYPE_ICON = { job: "briefcase", internship: "graduation-cap", attachment: "building-2" };
-function coHtml(o) { return o.logo_url ? `<div class="co lg"><img src="${esc(o.logo_url)}" alt="" onerror="this.remove()"></div>` : `<div class="co ty"><i data-lucide="${TYPE_ICON[String(o.type || "").toLowerCase()] || "briefcase"}" class="icon"></i></div>`; }
-document.addEventListener("DOMContentLoaded", () => ["applicationsList", "savedList"].forEach((id) => new MutationObserver(() => icons()).observe($(id), { childList: true })));
 
 /* ---------- Affiliate program ---------- */
 async function loadAff() {

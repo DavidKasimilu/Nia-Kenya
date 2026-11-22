@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Opportunities | Nia</title>
   <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/favicon/apple-touch-icon.png" />
   <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -77,7 +79,7 @@
     <div class="modal sheet">
       <button class="close-btn" id="payClose" aria-label="Close"><i data-lucide="x" class="icon"></i></button>
       <h2>Unlock applications</h2><p class="sub" id="payFor"></p>
-      <div class="price"><b id="payPrice">KES 250</b><span> / month</span></div>
+      <div id="payPlans"></div>
       <ul class="perks">
         <li><i data-lucide="check" class="icon"></i> Apply to any listing, as many as you like</li>
         <li><i data-lucide="check" class="icon"></i> Email updates when your application status changes</li>
@@ -96,11 +98,13 @@
   </div>
 
   <script src="alerts.js"></script>
+  <script src="plans-ui.js"></script>
   <script src="dashboard.js"></script>
   <script src="nav.js"></script>
   <script src="notify.js"></script>
   <!-- Lucide icons. For SRI: curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A, then add integrity + crossorigin -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>
+  <script src="pwa.js"></script>
 </body>
 </html>
