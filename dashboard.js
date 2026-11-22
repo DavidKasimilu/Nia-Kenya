@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const { data: p } = await sb.from("profiles").select("status, role, resume_url, full_name, phone, whatsapp, county, avatar_url, referred_by").eq("id", session.user.id).maybeSingle();
   if (p?.status === "banned") { await sb.auth.signOut(); alert("Your account has been suspended. Please contact administration."); return (location.href = "index.html"); }
   if (!p?.referred_by) claimReferral();
+  if (p?.role === "employer") return (location.href = "employer.html");
   state.profile = p || {}; state.staff = ["admin", "moderator"].includes(p?.role);
 
   $("avatarBtn").innerHTML = avatarHtml(p, session.user.email); if (window.NiaNav) NiaNav.setAvatar($("avatarBtn").innerHTML);
@@ -72,7 +73,7 @@ async function loadFeed(reset) {
   const my = ++state.seq;
   if (reset) { state.items = []; $("feed").innerHTML = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`; $("moreBtn").classList.add("hidden"); }
   const from = state.items.length;
-  let q = sb.from("opportunities").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+  let q = sb.from("opportunities").select("*", { count: "exact" }).order("featured", { ascending: false }).order("created_at", { ascending: false }).range(from, from + PAGE - 1);
   if (state.type === "Saved") q = q.in("id", state.saved.size ? [...state.saved] : [NONE]); else if (state.type !== "All") q = q.ilike("type", state.type);
   const s = clean($("searchInput").value), l = clean($("locationFilterInput").value);
   if (s) q = q.or(`title.ilike.%${s}%,company.ilike.%${s}%`);
@@ -95,7 +96,7 @@ function card(o) {
   return `<article class="job"><div class="job-top">${coHtml(o)}<div><h3>${esc(o.title)}</h3><div class="company">${esc(o.company)}</div></div>
   <div class="tools"><button class="tool${sv ? " on" : ""}" data-save="${esc(o.id)}" aria-label="${sv ? "Remove from saved" : "Save listing"}" title="${sv ? "Saved" : "Save"}"><i data-lucide="bookmark" class="icon"></i></button><button class="tool" data-report="${esc(o.id)}" aria-label="Report listing" title="Report"><i data-lucide="flag" class="icon"></i></button></div></div>
   <div class="meta"><span><i data-lucide="map-pin" class="icon"></i>${esc(o.location)}</span><span><i data-lucide="tag" class="icon"></i>${esc(o.type)}</span><span><i data-lucide="clock" class="icon"></i>${ago(o.created_at)}</span>${o.deadline ? `<span><i data-lucide="calendar" class="icon"></i>Closes ${new Date(o.deadline).toLocaleDateString("en-KE", { day: "numeric", month: "short" })}</span>` : ""}</div>
-  <p class="desc">${esc(o.description)}</p><div class="job-foot"><span class="badge gray">${esc(o.type)}</span>${btn}</div></article>`;
+  <p class="desc">${esc(o.description)}</p><div class="job-foot"><span style="display:flex;gap:.4rem;flex-wrap:wrap"><span class="badge gray">${esc(o.type)}</span>${o.featured ? `<span class="badge"><i data-lucide="star" class="icon"></i> Featured</span>` : ""}</span>${btn}</div></article>`;
 }
 
 async function toggleSave(id) {

@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   user = session.user;
   const { data } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (data?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
+  if (data?.role === "employer") return (location.href = "employer.html");
   profile = data || {}; if (["admin", "moderator"].includes(profile.role)) { $("adminLink").classList.remove("hidden"); $("pAdmin").classList.remove("hidden"); }
   $("displayEmail").textContent = $("menuEmail").textContent = $("profileEmail").value = user.email || "";
   $("profileFullName").value = profile.full_name || user.user_metadata?.full_name || "";

@@ -38,10 +38,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { programs: programsView, affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { employers: employersView, programs: programsView, affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
   let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
-  if (!isAdmin && ["programs", "affiliates", "billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
+  if (!isAdmin && ["employers", "programs", "affiliates", "billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
   document.querySelectorAll("#nav a[data-v]").forEach((a) => a.classList.toggle("on", a.dataset.v === v));
   document.querySelectorAll("#nav .grp").forEach((b) => b.classList.toggle("on", GROUPS.find((x) => x.id === b.dataset.g).items.some((i) => i[0] === v))); closePop();
   $("view").onclick = null; $("view").innerHTML = empty("Loading…");
@@ -68,11 +68,11 @@ async function dropLogos(list, remaining) {
   if (paths.length) await sb.storage.from("listing-logos").remove([...new Set(paths)]);
 }
 async function opportunities() {
-  const [o, st] = await Promise.all([sb.from("opportunities").select("*").order("created_at", { ascending: false }), sb.rpc("admin_listing_stats")]);
+  const [o, st, epr] = await Promise.all([sb.from("opportunities").select("*").order("created_at", { ascending: false }), sb.rpc("admin_listing_stats"), sb.from("employer_profiles").select("user_id,org_name")]);
   if (o.error) throw o.error;
-  const data = o.data || [], S = Object.fromEntries((st.data || []).map((x) => [x.opportunity_id, x])), sel = new Set(); let lim = 25;
+  const data = o.data || [], S = Object.fromEntries((st.data || []).map((x) => [x.opportunity_id, x])), sel = new Set(), E = Object.fromEntries((epr.data || []).map((e) => [e.user_id, e.org_name])); let lim = 25;
   const btn = (k, id, icon, label, cls = "") => `<button class="ib ${cls}" data-${k}="${esc(id)}"><i data-lucide="${icon}" class="icon"></i><span>${label}</span></button>`;
-  const row = (x) => { const s = S[x.id] || {}, pub = x.status === "published"; return `<div class="r"><input type="checkbox" class="ck" data-k="${esc(x.id)}" ${sel.has(x.id) ? "checked" : ""} aria-label="Select listing"><div class="grow"><h3>${esc(x.title)}</h3><p>${esc(x.company)} · ${esc(x.location)} · ${esc(x.type)}${x.deadline ? " · closes " + dt(x.deadline) : ""}</p><p>${s.applicants ?? 0} applicants · ${s.saves ?? 0} saved${s.open_reports ? ` · <b style="color:var(--red)">${s.open_reports} open report(s)</b>` : ""}</p></div>${badge(x.status)}<div class="acts">${btn("e", x.id, "pencil", "Edit")}${btn("t", x.id, pub ? "lock" : "send", pub ? "Close" : "Publish")}${btn("c", x.id, "copy", "Duplicate")}${s.applicants ? btn("m", x.id, "mail", "Message") : ""}${isAdmin ? btn("d", x.id, "trash-2", "Delete", "d") : ""}</div></div>`; };
+  const row = (x) => { const s = S[x.id] || {}, pub = x.status === "published"; return `<div class="r"><input type="checkbox" class="ck" data-k="${esc(x.id)}" ${sel.has(x.id) ? "checked" : ""} aria-label="Select listing"><div class="grow"><h3>${esc(x.title)}</h3><p>${esc(x.company)} · ${esc(x.location)} · ${esc(x.type)}${x.deadline ? " · closes " + dt(x.deadline) : ""}${x.employer_id && E[x.employer_id] ? " · by " + esc(E[x.employer_id]) : ""}${x.featured ? " · ★ featured" : ""}</p><p>${s.applicants ?? 0} applicants · ${s.saves ?? 0} saved${s.open_reports ? ` · <b style="color:var(--red)">${s.open_reports} open report(s)</b>` : ""}</p></div>${badge(x.status)}<div class="acts">${btn("e", x.id, "pencil", "Edit")}${btn("t", x.id, pub ? "lock" : "send", pub ? "Close" : x.status === "pending" ? "Approve" : "Publish")}${isAdmin ? btn("f", x.id, "star", x.featured ? "Unfeature" : "Feature") : ""}${btn("c", x.id, "copy", "Duplicate")}${s.applicants ? btn("m", x.id, "mail", "Message") : ""}${isAdmin ? btn("d", x.id, "trash-2", "Delete", "d") : ""}</div></div>`; };
   function bar() { $("bulk").style.display = sel.size ? "flex" : "none"; $("bulkN").textContent = sel.size + " selected"; }
   function draw() { $("oRows").innerHTML = (data.slice(0, lim).map(row).join("") || empty("No listings yet.")) + (data.length > lim ? `<button class="btn btn-ghost" id="oMore">Show more (${data.length - lim} left)</button>` : ""); icons(); if ($("oMore")) $("oMore").onclick = () => { lim += 25; draw(); }; bar(); }
   $("view").innerHTML = head("", "", `<button class="btn btn-green" id="newOpp"><i data-lucide="plus" class="icon"></i> New listing</button>`) +
@@ -95,7 +95,8 @@ async function opportunities() {
       const { error } = await sb.from("opportunities").update({ status: d.bulk }).in("id", ids); if (error) return toast(error.message);
       await log("opportunity.bulk_" + d.bulk, "opportunity", "", { count: ids.length }); toast("Done."); return route();
     }
-    const x = data.find((y) => y.id === (d.e || d.t || d.c || d.m || d.d)); if (!x) return;
+    const x = data.find((y) => y.id === (d.e || d.t || d.c || d.m || d.d || d.f)); if (!x) return;
+    if (d.f) { const { error } = await sb.from("opportunities").update({ featured: !x.featured }).eq("id", x.id); if (error) return toast(error.message); await log(x.featured ? "opportunity.unfeature" : "opportunity.feature", "opportunity", x.id, { title: x.title }); return route(); }
     if (d.e) return oppForm(x);
     if (d.c) return oppForm({ ...x, id: undefined, created_at: undefined, title: "Copy of " + x.title, status: "draft" });
     if (d.t) { const ns = x.status === "published" ? "closed" : "published"; const { error } = await sb.from("opportunities").update({ status: ns }).eq("id", x.id); if (error) return toast(error.message); await log("opportunity." + ns, "opportunity", x.id, { title: x.title }); toast("Listing " + ns + "."); return route(); }
@@ -376,7 +377,7 @@ async function affiliatesView() {
 
 /* ---------- Grouped menu ---------- */
 const GROUPS = [
-  { id: "opp", label: "Opportunities", icon: "briefcase", items: [["opportunities", "Listings", "briefcase"], ["applications", "Applicants", "inbox"], ["reports", "Reports", "flag"], ["programs", "Programs", "sparkles", 1], ["fields", "Applicant details", "list-checks", 1]] },
+  { id: "opp", label: "Opportunities", icon: "briefcase", items: [["opportunities", "Listings", "briefcase"], ["applications", "Applicants", "inbox"], ["reports", "Reports", "flag"], ["employers", "Employers", "building-2", 1], ["programs", "Programs", "sparkles", 1], ["fields", "Applicant details", "list-checks", 1]] },
   { id: "ppl", label: "People", icon: "users", items: [["users", "Users", "users"], ["avatars", "Avatars", "image", 1]] },
   { id: "money", label: "Money", icon: "wallet", items: [["billing", "Billing", "wallet", 1], ["affiliates", "Affiliates", "handshake", 1]] },
   { id: "plat", label: "Platform", icon: "settings-2", items: [["announcements", "Announcements", "megaphone", 1], ["audit", "Audit log", "scroll-text", 1]] },
@@ -437,5 +438,25 @@ function programForm(p = {}) {
     $("sv").disabled = true; const { data, error } = await (p.id ? sb.from("programs").update(row).eq("id", p.id).select("id").single() : sb.from("programs").insert([row]).select("id").single()); $("sv").disabled = false;
     if (error) { const m = $("fm"); m.className = "message error"; m.textContent = error.message; return; }
     await log(p.id ? "program.update" : "program.create", "program", data.id, { title: row.title }); closeModal(); toast("Saved."); route();
+  };
+}
+
+/* ---------- Employers ---------- */
+async function employersView() {
+  const [ep, ls] = await Promise.all([sb.from("employer_profiles").select("*").order("created_at", { ascending: false }), sb.from("opportunities").select("employer_id,status").not("employer_id", "is", null)]);
+  if (ep.error) throw ep.error;
+  const ids = (ep.data || []).map((e) => e.user_id), pr = ids.length ? (await sb.from("profiles").select("id,email").in("id", ids)).data || [] : [], P = Object.fromEntries(pr.map((x) => [x.id, x.email]));
+  const C = {}; (ls.data || []).forEach((l) => { const c = (C[l.employer_id] ||= { live: 0, pending: 0 }); if (l.status === "published") c.live++; if (l.status === "pending") c.pending++; });
+  const waiting = Object.values(C).reduce((n, c) => n + c.pending, 0);
+  $("view").innerHTML = (waiting ? `<div class="toolbar" style="align-items:center"><b>${waiting} listing(s) awaiting approval</b><a class="btn btn-primary" href="#opportunities">Review listings</a></div>` : "") +
+    `<div class="rows">${(ep.data || []).map((e) => { const c = C[e.user_id] || { live: 0, pending: 0 };
+      return `<div class="r"><div class="grow"><h3>${esc(e.org_name)}</h3><p>${esc(P[e.user_id] || "")}${e.contact_name ? " · " + esc(e.contact_name) : ""}${e.phone ? " · " + esc(e.phone) : ""}${e.website ? " · " + esc(e.website) : ""}</p><p>${esc(e.about || "")}</p><p>${c.live} live · ${c.pending} awaiting approval</p></div><span class="badge b-${esc(e.status)}">${esc(e.status)}</span>
+      <div class="acts">${e.status !== "approved" ? `<button class="ib" data-ok="${esc(e.user_id)}"><i data-lucide="check" class="icon"></i><span>Approve</span></button>` : ""}${e.status !== "rejected" ? `<button class="ib d" data-no="${esc(e.user_id)}"><i data-lucide="x" class="icon"></i><span>${e.status === "approved" ? "Revoke" : "Reject"}</span></button>` : ""}</div></div>`; }).join("") || empty("No employer applications yet.")}</div>`;
+  icons();
+  $("view").onclick = async (e) => {
+    const b = e.target.closest("button[data-ok],button[data-no]"); if (!b) return; const id = b.dataset.ok || b.dataset.no, em = (ep.data || []).find((x) => x.user_id === id);
+    if (b.dataset.ok) { if (!(await confirmBox("Approve " + em.org_name + "?", "They will be able to post listings. Each listing still needs your approval.", "Approve"))) return; const { error } = await sb.rpc("admin_review_employer", { p_user: id, p_approve: true, p_note: null }); if (error) return toast(error.message); toast("Approved."); return route(); }
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${em.status === "approved" ? "Revoke" : "Reject"} ${esc(em.org_name)}</h2><p class="sub">${em.status === "approved" ? "Their live and pending listings will be closed. " : ""}The note below is shown to them.</p><div class="form-group"><label>Note (optional)</label><textarea id="nt" rows="3" maxlength="300"></textarea></div><button class="btn btn-danger" id="go" style="width:100%">${em.status === "approved" ? "Revoke" : "Reject"}</button>`);
+    $("x").onclick = closeModal; $("go").onclick = async () => { const { error } = await sb.rpc("admin_review_employer", { p_user: id, p_approve: false, p_note: $("nt").value.trim() || null }); if (error) return toast(error.message); closeModal(); toast("Done."); route(); };
   };
 }

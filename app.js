@@ -130,7 +130,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (profile && profile.status === "banned") {
         await supabaseClient.auth.signOut();
-        showMessage("Your account has been suspended. Please contact administration. Email: nkepedavid@gmail.com", true);
+        showMessage("Your account has been suspended. Please contact administration. Email: nia.platform.ke@gmail.com", true);
+        return;
+      }
+
+      if (profile && profile.role === "employer") {
+        window.location.href = "employer.html";
+        return;
+      }
+      let next = null;
+      try { next = localStorage.getItem("nia_next"); } catch (e) {}
+      if (next === "employer" && !(profile && profile.role === "admin")) {
+        try { localStorage.removeItem("nia_next"); } catch (e) {}
+        window.location.href = "employer.html";
         return;
       }
 

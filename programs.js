@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   user = session.user;
   const { data: p } = await sb.from("profiles").select("status, role, full_name, avatar_url").eq("id", user.id).maybeSingle();
   if (p?.status === "banned") { await sb.auth.signOut(); return (location.href = "index.html"); }
+  if (p?.role === "employer") return (location.href = "employer.html");
   profile = p || {}; staff = ["admin", "moderator"].includes(p?.role);
   const n = (p?.full_name || user.email || "?").trim()[0].toUpperCase();
   $("avatarBtn").innerHTML = p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" onerror="this.replaceWith(document.createTextNode('${esc(n)}'))">` : esc(n);
