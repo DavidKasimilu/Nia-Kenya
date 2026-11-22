@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employer | Nia</title>
+  <meta name="robots" content="noindex" /><meta name="theme-color" content="#000000" />
+  <link rel="icon" type="image/x-icon" href="assets/favicon/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="base.css" /><link rel="stylesheet" href="dash.css" /><link rel="stylesheet" href="admin.css" /><link rel="stylesheet" href="employer.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header class="topbar"><div class="container topbar-in">
+    <a href="employer.html" class="brand" aria-label="Nia"><img src="assets/images/logo2-tight.png" alt="Nia" width="40" height="40" /></a>
+    <span class="pill">EMPLOYER</span>
+    <div class="tb-right"><span id="orgName" style="font-size:.9rem;font-weight:600"></span><button class="tb-btn" id="logoutBtn" aria-label="Sign out" title="Sign out"><i data-lucide="log-out" class="icon"></i></button></div>
+  </div></header>
+  <main class="container page" id="view"><div class="empty">Loading…</div></main>
+  <div id="modal" class="modal-overlay hidden" role="dialog" aria-modal="true"><div class="modal sheet m-lg" id="modalBody"></div></div>
+  <script src="employer.js"></script>
+  <!-- Lucide icons. For SRI run: node tools/add-sri.mjs -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <script>if(window.lucide)lucide.createIcons();window.__icons=()=>window.lucide&&lucide.createIcons();</script>
+</body>
+</html>
