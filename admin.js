@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("hashchange", route); route();
 });
 
-const views = { employers: employersView, programs: programsView, affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
+const views = { messages: messagesView, employers: employersView, programs: programsView, affiliates: affiliatesView, billing: billingView, reports: reportsView, fields: fieldsView, overview, opportunities, applications, users, avatars, announcements, audit };
 async function route() {
   let v = views[location.hash.slice(1)] ? location.hash.slice(1) : "overview";
   if (!isAdmin && ["employers", "programs", "affiliates", "billing", "fields", "avatars", "announcements", "audit"].includes(v)) v = "overview";
@@ -103,7 +103,7 @@ async function opportunities() {
     if (d.m) {
       openModal(`<button class="close-btn" id="mx"><i data-lucide="x" class="icon"></i></button><h2>Message applicants</h2><p class="sub">${esc(x.title)}: ${S[x.id]?.applicants ?? 0} applicant(s) will see this in their notifications.</p><div id="fm" class="message hidden"></div><div class="form-group"><label>Title</label><input id="mT" maxlength="120"></div><div class="form-group"><label>Message</label><textarea id="mB" rows="4" maxlength="500"></textarea></div><button class="btn btn-submit" id="mGo">Send</button>`);
       $("mx").onclick = closeModal;
-      $("mGo").onclick = async () => { const t = $("mT").value.trim(), fail = (s) => { const m = $("fm"); m.className = "message error"; m.textContent = s; }; if (!t) return fail("Add a title."); const r = await sb.rpc("admin_message_applicants", { p_opp: x.id, p_title: t, p_body: $("mB").value.trim() || null }); if (r.error) return fail(r.error.message); closeModal(); toast("Sent to " + r.data + " applicant(s)."); };
+      $("mGo").onclick = async () => { const t = $("mT").value.trim(), fail = (s) => { const m = $("fm"); m.className = "message error"; m.textContent = s; }; if (!t) return fail("Add a title."); const r = await sb.rpc("send_opportunity_message", { p_opp: x.id, p_title: t, p_body: $("mB").value.trim() || null }); if (r.error) return fail(r.error.message); closeModal(); toast("Sent to " + r.data + " applicant(s)."); };
       return;
     }
     if (d.d && (await confirmBox("Delete listing?", `"${x.title}" and all its applications will be removed.`, "Delete"))) {
@@ -377,7 +377,7 @@ async function affiliatesView() {
 
 /* ---------- Grouped menu ---------- */
 const GROUPS = [
-  { id: "opp", label: "Opportunities", icon: "briefcase", items: [["opportunities", "Listings", "briefcase"], ["applications", "Applicants", "inbox"], ["reports", "Reports", "flag"], ["employers", "Employers", "building-2", 1], ["programs", "Programs", "sparkles", 1], ["fields", "Applicant details", "list-checks", 1]] },
+  { id: "opp", label: "Opportunities", icon: "briefcase", items: [["opportunities", "Listings", "briefcase"], ["applications", "Applicants", "inbox"], ["messages", "Messages", "mail"], ["reports", "Reports", "flag"], ["employers", "Employers", "building-2", 1], ["programs", "Programs", "sparkles", 1], ["fields", "Applicant details", "list-checks", 1]] },
   { id: "ppl", label: "People", icon: "users", items: [["users", "Users", "users"], ["avatars", "Avatars", "image", 1]] },
   { id: "money", label: "Money", icon: "wallet", items: [["billing", "Billing", "wallet", 1], ["affiliates", "Affiliates", "handshake", 1]] },
   { id: "plat", label: "Platform", icon: "settings-2", items: [["announcements", "Announcements", "megaphone", 1], ["audit", "Audit log", "scroll-text", 1]] },
@@ -458,5 +458,41 @@ async function employersView() {
     if (b.dataset.ok) { if (!(await confirmBox("Approve " + em.org_name + "?", "They will be able to post listings. Each listing still needs your approval.", "Approve"))) return; const { error } = await sb.rpc("admin_review_employer", { p_user: id, p_approve: true, p_note: null }); if (error) return toast(error.message); toast("Approved."); return route(); }
     openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${em.status === "approved" ? "Revoke" : "Reject"} ${esc(em.org_name)}</h2><p class="sub">${em.status === "approved" ? "Their live and pending listings will be closed. " : ""}The note below is shown to them.</p><div class="form-group"><label>Note (optional)</label><textarea id="nt" rows="3" maxlength="300"></textarea></div><button class="btn btn-danger" id="go" style="width:100%">${em.status === "approved" ? "Revoke" : "Reject"}</button>`);
     $("x").onclick = closeModal; $("go").onclick = async () => { const { error } = await sb.rpc("admin_review_employer", { p_user: id, p_approve: false, p_note: $("nt").value.trim() || null }); if (error) return toast(error.message); closeModal(); toast("Done."); route(); };
+  };
+}
+
+/* ---------- Messages (history of what was sent about each opportunity) ---------- */
+async function messagesView() {
+  const [m, rc, ls, ops] = await Promise.all([
+    sb.from("opportunity_messages").select("*").order("created_at", { ascending: false }).limit(500),
+    sb.from("message_recipients").select("message_id,read_at").limit(50000),
+    sb.rpc("admin_listing_stats"),
+    sb.from("opportunities").select("id,title,company").order("title"),
+  ]);
+  if (m.error) throw m.error;
+  const R = {}; (rc.data || []).forEach((x) => { const r = (R[x.message_id] ||= { read: 0 }); if (x.read_at) r.read++; });
+  const withApplicants = new Set((ls.data || []).filter((x) => Number(x.applicants) > 0).map((x) => x.opportunity_id));
+  const opts = [...new Map((m.data || []).filter((x) => x.opportunity_id).map((x) => [x.opportunity_id, x.opp_title])).entries()];
+  $("view").innerHTML = head("", "", `<button class="btn btn-green" id="nm"><i data-lucide="plus" class="icon"></i> New message</button>`) +
+    `<div class="toolbar"><select id="mf"><option value="">All listings</option>${opts.map(([id, t]) => `<option value="${esc(id)}">${esc(t)}</option>`).join("")}</select></div><div class="rows" id="mRows"></div>`;
+  const draw = () => {
+    const f = $("mf").value, l = (m.data || []).filter((x) => !f || x.opportunity_id === f);
+    $("mRows").innerHTML = l.map((x) => `<div class="r" data-m="${esc(x.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(x.title)}</h3><p>${esc(x.opp_title)}${x.opp_company ? " · " + esc(x.opp_company) : ""} · from ${esc(x.sender_name)} · ${dt(x.created_at)}</p><p>${x.recipient_count} recipient(s) · ${(R[x.id] || { read: 0 }).read} read</p></div><span class="ib"><i data-lucide="eye" class="icon"></i><span>View</span></span></div>`).join("") || empty("No messages sent yet.");
+    icons();
+  };
+  $("mf").onchange = draw; draw();
+  $("mRows").onclick = (e) => {
+    const r = e.target.closest("[data-m]"); if (!r) return; const x = m.data.find((y) => y.id === r.dataset.m);
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>${esc(x.title)}</h2><p class="sub">${esc(x.opp_title)} · from ${esc(x.sender_name)} (${esc(x.sender_role)}) · ${dt(x.created_at)}</p><p style="white-space:pre-wrap;color:var(--ink-2);margin-bottom:1rem">${esc(x.body || "(no message text)")}</p><p class="sub" style="margin:0">${x.recipient_count} recipient(s), ${(R[x.id] || { read: 0 }).read} have read it.</p>`);
+    $("x").onclick = closeModal;
+  };
+  $("nm").onclick = () => {
+    const choices = (ops.data || []).filter((o) => withApplicants.has(o.id));
+    if (!choices.length) return toast("No listing has applicants yet.");
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>New message</h2><p class="sub">Sent to everyone who applied to the listing.</p><div id="fm" class="message hidden"></div>
+      <div class="form-group"><label>Listing</label><select id="nl">${choices.map((o) => `<option value="${esc(o.id)}">${esc(o.title)}${o.company ? " · " + esc(o.company) : ""}</option>`).join("")}</select></div>
+      <div class="form-group"><label>Title</label><input id="nt" maxlength="120"></div><div class="form-group"><label>Message</label><textarea id="nb" rows="4" maxlength="500"></textarea></div><button class="btn btn-submit" id="go">Send</button>`);
+    $("x").onclick = closeModal;
+    $("go").onclick = async () => { const t = $("nt").value.trim(), bad = (s) => { const f = $("fm"); f.className = "message error"; f.textContent = s; }; if (!t) return bad("Add a title."); const r = await sb.rpc("send_opportunity_message", { p_opp: $("nl").value, p_title: t, p_body: $("nb").value.trim() || null }); if (r.error) return bad(r.error.message); closeModal(); toast("Sent to " + r.data + " applicant(s)."); route(); };
   };
 }

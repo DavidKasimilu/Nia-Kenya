@@ -268,3 +268,8 @@ async function loadAlerts() {
   if ($("alToSub")) $("alToSub").onclick = (e) => { e.preventDefault(); showTab("subscription"); };
   $("alSaveP").onclick = async () => { const { error } = await NiaAlerts.save(sb, user.id, NiaAlerts.read(box)); if (error) return say(error.message, true); say("Alert saved."); };
 }
+
+/* ---------- Opportunity icon / logo (shared look with the feed) ---------- */
+const TYPE_ICON = { job: "briefcase", internship: "graduation-cap", attachment: "building-2" };
+function coHtml(o) { return o.logo_url ? `<div class="co lg"><img src="${esc(o.logo_url)}" alt="" onerror="this.remove()"></div>` : `<div class="co ty"><i data-lucide="${TYPE_ICON[String(o.type || "").toLowerCase()] || "briefcase"}" class="icon"></i></div>`; }
+document.addEventListener("DOMContentLoaded", () => ["applicationsList", "savedList"].forEach((id) => new MutationObserver(() => icons()).observe($(id), { childList: true })));

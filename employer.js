@@ -117,9 +117,17 @@ async function showApplicants(sel) {
   const id = sel || listings[0].id;
   const { data: apps } = await sb.from("applications").select("*").eq("opportunity_id", id).neq("status", "withdrawn").order("created_at", { ascending: false });
   const ids = [...new Set((apps || []).map((a) => a.user_id))], pr = ids.length ? (await sb.from("profiles").select("id,full_name,phone,whatsapp,county,institution,course,resume_url").in("id", ids)).data || [] : [], P = Object.fromEntries(pr.map((x) => [x.id, x]));
-  $("pane").innerHTML = `<div class="toolbar"><select id="lsel">${listings.map((o) => `<option value="${esc(o.id)}" ${o.id === id ? "selected" : ""}>${esc(o.title)}</option>`).join("")}</select></div>
+  $("pane").innerHTML = `<div class="toolbar"><select id="lsel">${listings.map((o) => `<option value="${esc(o.id)}" ${o.id === id ? "selected" : ""}>${esc(o.title)}</option>`).join("")}</select>${(apps || []).length ? `<button class="btn btn-primary" id="msgAll"><i data-lucide="mail" class="icon"></i> Message all</button>` : ""}</div>
     <div class="rows">${(apps || []).map((a) => `<div class="r" data-a="${esc(a.id)}" style="cursor:pointer"><div class="grow"><h3>${esc(P[a.user_id]?.full_name || a.user_email)}</h3><p>${esc(a.user_email)} · applied ${dt(a.created_at)}</p></div>${badge(a.status)}<span class="ib"><i data-lucide="eye" class="icon"></i><span>View</span></span></div>`).join("") || `<div class="empty">No applicants yet for this listing.</div>`}</div>`;
+  const { data: sent } = await sb.from("opportunity_messages").select("id,title,created_at,recipient_count").eq("opportunity_id", id).eq("sender_id", user.id).order("created_at", { ascending: false });
+  if ((sent || []).length) $("pane").insertAdjacentHTML("beforeend", `<h3 style="margin:1.5rem 0 .6rem;font-size:1rem">Messages sent</h3><div class="rows">${sent.map((x) => `<div class="r"><div class="grow"><h3>${esc(x.title)}</h3><p>${dt(x.created_at)} · ${x.recipient_count} recipient(s)</p></div></div>`).join("")}</div>`);
   icons(); $("lsel").onchange = () => showApplicants($("lsel").value);
+  if ($("msgAll")) $("msgAll").onclick = () => {
+    const o = listings.find((x) => x.id === id);
+    openModal(`<button class="close-btn" id="x"><i data-lucide="x" class="icon"></i></button><h2>Message applicants</h2><p class="sub">${esc(o.title)}: sent to everyone who applied. They read it in their Messages.</p><div id="fm" class="message hidden"></div><div class="form-group"><label>Title</label><input id="mt" maxlength="120"></div><div class="form-group"><label>Message</label><textarea id="mb" rows="4" maxlength="500" style="width:100%;padding:.75rem .9rem;border:1px solid var(--line);border-radius:10px;font:inherit"></textarea></div><button class="btn btn-submit" id="go">Send</button>`);
+    $("x").onclick = closeModal;
+    $("go").onclick = async () => { const t = $("mt").value.trim(); if (!t) return fail("fm", "Add a title."); const r = await sb.rpc("send_opportunity_message", { p_opp: id, p_title: t, p_body: $("mb").value.trim() || null }); if (r.error) return fail("fm", r.error.message); closeModal(); toast("Sent to " + r.data + " applicant(s)."); showApplicants(id); };
+  };
   $("pane").onclick = (e) => { const r = e.target.closest("[data-a]"); if (r) detail(apps.find((a) => a.id === r.dataset.a), P[apps.find((a) => a.id === r.dataset.a).user_id] || {}, id); };
 }
 
